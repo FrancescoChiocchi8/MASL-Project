@@ -1,0 +1,10 @@
+random.seed : 42
+stop.at : 50.0
+nadh.count : 500
+alfasinucleina.count : 300
+ros.count : 4
+artificialagent.count : 100
+world.width : 500
+world.height : 500
+run.number: 1
+logging_file: './output/agent_counts.csv'
