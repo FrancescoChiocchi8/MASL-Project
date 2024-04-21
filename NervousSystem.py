@@ -48,9 +48,10 @@ class GridNghFinder:
 
         return np.stack((xs, ys, np.zeros(len(ys), dtype=np.int32)), axis=-1)
 
-class AlfaSinucleina(core.Agent): 
 
-    TYPE = 0 
+class AlfaSinucleina(core.Agent):
+
+    TYPE = 0
 
     def __init__(self, a_id, rank):
         super().__init__(id=a_id, type=AlfaSinucleina.TYPE, rank=rank)
@@ -58,11 +59,12 @@ class AlfaSinucleina(core.Agent):
     def save(self) -> Tuple:
         return (self.uid,)
 
-    def add_ROS(self, pt):
-        r = ROS(model.ros_id, model.rank)
-        model.ros_id += 1
-        model.context.add(r)
-        model.move(r, pt.x, pt.y)
+    def generate_electron(self, pt):
+        # Generate electron when interacting with NADH
+        e = Electron(model.electron_id, model.rank)
+        model.electron_id += 1
+        model.context.add(e)
+        model.move(e, pt.x, pt.y)
 
     def step(self):
         grid = model.grid
@@ -83,7 +85,7 @@ class AlfaSinucleina(core.Agent):
                 maximum[1] = count
             elif count == maximum[1]:
                 maximum[0].append(ngh)
-        
+
         max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
 
         if not np.all(max_ngh == pt.coordinates):
@@ -93,14 +95,11 @@ class AlfaSinucleina(core.Agent):
         pt = grid.get_location(self)
         for obj in grid.get_agents(pt):
             if obj.uid[1] == Nadh.TYPE:
-                self.add_ROS(pt)
+                # release of electron with a 0.8 index of probability
+                probability_of_release = 0.7
+                if random.default_rng.uniform(0, 1) < probability_of_release:
+                    self.generate_electron(pt)
                 break
-
-
-#class Elettrone(core.Agent)
-
-
-#class Ossigeno(core.Agent)
 
 
 class Nadh(core.Agent):
@@ -138,8 +137,8 @@ class Nadh(core.Agent):
             space_pt = model.space.get_location(self)
             direction = (min_ngh - pt.coordinates) * 0.8
             model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
-        
-
+            
+            
 class ROS(core.Agent):
 
     TYPE = 2
@@ -221,8 +220,83 @@ class ArtificialAgent(core.Agent):
             if obj.uid[1] == ROS.TYPE:
                 self.remove_agentROS(obj)
                 break
-    
+        
 
+class Electron(core.Agent):
+    
+    TYPE = 4
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=Electron.TYPE, rank=rank)
+
+    def save(self) -> Tuple:
+        return (self.uid,)
+
+    def step(self):
+        # Move the electron
+        grid = model.grid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finder.find(pt.x, pt.y)
+        
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at = dpt(*ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == Nadh.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            direction = (np.array(max_ngh) - np.array(pt.coordinates)) * 0.5
+            model.move(self, pt.x + direction[0], pt.y + direction[1])
+
+        # Check the current location for Nadh and generate ROS
+        pt = grid.get_location(self)
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == Nadh.TYPE:
+                # Generate ROS when interacting with NADH
+                r = ROS(model.ros_id, model.rank)
+                model.ros_id += 1
+                model.context.add(r)
+                model.move(r, pt.x, pt.y)
+                break
+
+
+class Oxygen(core.Agent):
+    
+    TYPE = 5
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=Oxygen.TYPE, rank=rank)
+
+    def save(self) -> Tuple:
+        return (self.uid,)
+
+    def step(self):
+        grid = model.grid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finder.find(pt.x, pt.y)
+
+        for ngh in nghs:
+            at = dpt(*ngh)
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == Electron.TYPE:
+                    # Reaction with electron to produce ROS
+                    # Remove the electron and create ROS
+                    model.context.remove(obj)
+                    r = ROS(model.ros_id, model.rank)
+                    model.ros_id += 1
+                    model.context.add(r)
+                    model.move(r, at.x, at.y)
+                    break
+    
 
 agent_cache = {} 
 
@@ -237,6 +311,22 @@ def restore_agent(agent_data: Tuple):
             n = Nadh(uid[0], uid[2])
             agent_cache[uid] = n
             return n
+    
+    if uid[1] == Electron.TYPE:                                      
+        if uid in agent_cache:                                  
+            return agent_cache[uid]
+        else:
+            e = Electron(uid[0], uid[2])
+            agent_cache[uid] = e
+            return e
+        
+    if uid[1] == Oxygen.TYPE:                                      
+        if uid in agent_cache:                                  
+            return agent_cache[uid]
+        else:
+            o = Oxygen(uid[0], uid[2])
+            agent_cache[uid] = o
+            return o
         
     if uid[1] == AlfaSinucleina.TYPE:                                                       
         if uid in agent_cache:
@@ -269,6 +359,8 @@ class Counts:
     alfasinucleina: int = 0
     ros: int = 0
     artificialAgent: int = 0
+    electron: int = 0
+    oxygen: int = 0
 
 
 class Model:
@@ -283,6 +375,7 @@ class Model:
         self.runner.schedule_stop(params['stop.at'])
         self.runner.schedule_end_event(self.at_end)
 
+        self.electron_id = 0
 
         box = space.BoundingBox(0, params['world.width'], 0, params['world.height'], 0, 0)    
         self.grid = space.SharedGrid('grid', bounds=box, borders=space.BorderType.Sticky,
@@ -362,10 +455,39 @@ class Model:
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(q, x, y) 
+            
+        #add electron agents to context
+        total_el_count = params['electron.count']    
+        pp_el_count = int(total_el_count / world_size) 
+        if self.rank < total_el_count % world_size:    
+            pp_el_count += 1
+        
+        local_bounds = self.space.get_local_bounds()  
+        for i in range(pp_el_count):    
+            q = Electron(i, self.rank)    
+            self.context.add(q)    
+            x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
+            y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
+            self.move(q, x, y) 
+            
+        #add oxygen agents to context
+        total_ox_count = params['oxygen.count']    
+        pp_ox_count = int(total_ox_count / world_size) 
+        if self.rank < total_ox_count % world_size:    
+            pp_ox_count += 1
+        
+        local_bounds = self.space.get_local_bounds()  
+        for i in range(pp_aa_count):    
+            q = Oxygen(i, self.rank)    
+            self.context.add(q)    
+            x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
+            y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
+            self.move(q, x, y) 
 
 
     def at_end(self):
         self.data_set.close()
+        
 
     def move(self, agent, x, y):
         self.space.move(agent, cpt(x, y))
@@ -380,6 +502,12 @@ class Model:
         for z in self.context.agents(AlfaSinucleina.TYPE):
             z.step()
    
+        for e in self.context.agents(Electron.TYPE):    
+            e.step()
+            
+        for o in self.context.agents(Oxygen.TYPE):    
+            o.step()
+            
         for h in self.context.agents(Nadh.TYPE):    
             h.step()
         
@@ -388,27 +516,28 @@ class Model:
 
         for q in self.context.agents(ArtificialAgent.TYPE):
             q.step()
-
-        
-        
+            
 
     def run(self):
         self.runner.execute()
+        
     
     def log_counts(self, tick):
-        num_agents = self.context.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, ArtificialAgent.TYPE])    
+        num_agents = self.context.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, ArtificialAgent.TYPE, Electron.TYPE, Oxygen.TYPE])    
         self.counts.nadh = num_agents[Nadh.TYPE]    
         self.counts.alfasinucleina = num_agents[AlfaSinucleina.TYPE] 
         self.counts.ros = num_agents[ROS.TYPE]      
         self.counts.artificialAgent = num_agents[ArtificialAgent.TYPE] 
+        self.counts.electron = num_agents[Electron.TYPE]
+        self.counts.oxygen = num_agents[Oxygen.TYPE]
         self.data_set.log(tick)
-
 
 
 def run(params: Dict):
     global model    
     model = Model(MPI.COMM_WORLD, params)   
     model.run()
+
 
 if __name__ == "__main__":
     parser = parameters.create_args_parser()    
