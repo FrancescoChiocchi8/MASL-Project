@@ -135,9 +135,9 @@ class Nadh(core.Agent):
         for obj in grid.get_agents(pt):
             if obj.uid[1] == AlfaSinucleina.TYPE:
                 # release of electron with a 0.8 index of probability
-                probability_of_release = 0.7
-                #if random.default_rng.uniform(0, 1) < probability_of_release:
-                self.generate_electron(pt)
+                probability_of_release = 0.8
+                if random.default_rng.uniform(0, 1) <= probability_of_release:
+                    self.generate_electron(pt)
                 break
             
 class ROS(core.Agent):
@@ -260,16 +260,23 @@ class Electron(core.Agent):
             model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
 
-
 class Oxygen(core.Agent):
     
     TYPE = 5
 
     def __init__(self, a_id, rank):
         super().__init__(id=a_id, type=Oxygen.TYPE, rank=rank)
+        self.ElectronFusion = False
 
     def save(self) -> Tuple:
-        return (self.uid,)
+        return (self.uid, self.ElectronFusion)
+
+    def generate_ros(self, pt):
+        # Generate electron when interacting with NADH
+        r = ROS(model.ros_id, model.rank)
+        model.ros_id += 1
+        model.context.add(r)
+        model.move(r, pt.x, pt.y)
 
     def step(self):
         grid = model.grid
@@ -296,20 +303,19 @@ class Oxygen(core.Agent):
             direction = (max_ngh - pt.coordinates[0:3]) * 0.7
             model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
             
-        pt = grid.get_location(self)
-
         
+        pt = grid.get_location(self)        
         for obj in grid.get_agents(pt):
             if obj.uid[1] == Electron.TYPE:
                 # Reaction with electron to produce ROS
                 # Remove the electron and create ROS
-                r = ROS(model.ros_id, model.rank)
-                model.ros_id += 1
-                model.context.add(r)
-                model.move(r, pt.x, pt.y)
+                self.ElectronFusion = True
+                self.generate_ros(pt)
                 model.context.remove(obj)
-                model.context.remove(self)
+                #model.context.remove(self)
                 break
+        
+        return(self.ElectronFusion)
 
 
 agent_cache = {} 
@@ -336,11 +342,13 @@ def restore_agent(agent_data: Tuple):
         
     if uid[1] == Oxygen.TYPE:                                      
         if uid in agent_cache:                                  
-            return agent_cache[uid]
+            o = agent_cache[uid]
         else:
             o = Oxygen(uid[0], uid[2])
             agent_cache[uid] = o
-            return o
+        
+        o.ElectronFusion = agent_data[1]
+        return o
         
     if uid[1] == AlfaSinucleina.TYPE:                                                       
         if uid in agent_cache:
@@ -440,7 +448,6 @@ class Model:
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(alf, x, y)
         
-        self.ros_id = pp_alfa_count
 
         #add ros agents to context
         total_ros_count = params['ros.count']    
@@ -455,6 +462,8 @@ class Model:
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(r, x, y) 
+
+        self.ros_id = pp_ros_count
         
         #add artificialAgent agents to context
         total_aa_count = params['artificialagent.count']    
@@ -478,11 +487,13 @@ class Model:
         
         local_bounds = self.space.get_local_bounds()  
         for i in range(pp_el_count):    
-            q = Electron(i, self.rank)    
-            self.context.add(q)    
+            e = Electron(i, self.rank)    
+            self.context.add(e)    
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
-            self.move(q, x, y) 
+            self.move(e, x, y) 
+        
+        self.electron_id = pp_el_count
             
         #add oxygen agents to context
         total_ox_count = params['oxygen.count']    
@@ -491,12 +502,12 @@ class Model:
             pp_ox_count += 1
         
         local_bounds = self.space.get_local_bounds()  
-        for i in range(pp_aa_count):    
-            q = Oxygen(i, self.rank)    
-            self.context.add(q)    
+        for i in range(pp_ox_count):    
+            o = Oxygen(i, self.rank)    
+            self.context.add(o)    
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
-            self.move(q, x, y) 
+            self.move(o, x, y) 
 
 
     def at_end(self):
@@ -506,8 +517,8 @@ class Model:
     def move(self, agent, x, y):
         self.space.move(agent, cpt(x, y))
         self.grid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
-
     
+
     def step(self):
         tick = self.runner.schedule.tick    
         self.log_counts(tick)    
@@ -518,9 +529,15 @@ class Model:
    
         for e in self.context.agents(Electron.TYPE):    
             e.step()
-            
-        for o in self.context.agents(Oxygen.TYPE):    
-            o.step()
+        
+        oxigen_fusion = []
+        for o in self.context.agents(Oxygen.TYPE):
+            fusion = o.step()
+            if fusion == True:
+                oxigen_fusion.append(o)
+                
+        for i in oxigen_fusion:
+            self.context.remove(i)
             
         for h in self.context.agents(Nadh.TYPE):    
             h.step()
