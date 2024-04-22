@@ -59,18 +59,10 @@ class AlfaSinucleina(core.Agent):
     def save(self) -> Tuple:
         return (self.uid,)
 
-    def generate_electron(self, pt):
-        # Generate electron when interacting with NADH
-        e = Electron(model.electron_id, model.rank)
-        model.electron_id += 1
-        model.context.add(e)
-        model.move(e, pt.x, pt.y)
-
     def step(self):
         grid = model.grid
         pt = grid.get_location(self)
         nghs = model.ngh_finder.find(pt.x, pt.y)
-        cpt = model.space.get_location(self)
 
         at = dpt(0, 0)
         maximum = [[], -(sys.maxsize - 1)]
@@ -89,17 +81,11 @@ class AlfaSinucleina(core.Agent):
         max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
 
         if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.space.get_location(self)
             direction = (max_ngh - pt.coordinates[0:3]) * 0.5
-            model.move(self, cpt.x + direction[0], cpt.y + direction[1])
+            model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
-        pt = grid.get_location(self)
-        for obj in grid.get_agents(pt):
-            if obj.uid[1] == Nadh.TYPE:
-                # release of electron with a 0.8 index of probability
-                probability_of_release = 0.7
-                if random.default_rng.uniform(0, 1) < probability_of_release:
-                    self.generate_electron(pt)
-                break
+        
 
 
 class Nadh(core.Agent):
@@ -111,6 +97,13 @@ class Nadh(core.Agent):
 
     def save(self) -> Tuple:
         return (self.uid,)
+    
+    def generate_electron(self, pt):
+        # Generate electron when interacting with NADH
+        e = Electron(model.electron_id, model.rank)
+        model.electron_id += 1
+        model.context.add(e)
+        model.move(e, pt.x, pt.y)
 
     def step(self):
         grid = model.grid
@@ -138,6 +131,14 @@ class Nadh(core.Agent):
             direction = (min_ngh - pt.coordinates) * 0.8
             model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
             
+        pt = grid.get_location(self)
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == AlfaSinucleina.TYPE:
+                # release of electron with a 0.8 index of probability
+                probability_of_release = 0.7
+                #if random.default_rng.uniform(0, 1) < probability_of_release:
+                self.generate_electron(pt)
+                break
             
 class ROS(core.Agent):
 
@@ -243,7 +244,7 @@ class Electron(core.Agent):
             at = dpt(*ngh)
             count = 0
             for obj in grid.get_agents(at):
-                if obj.uid[1] == Nadh.TYPE:
+                if obj.uid[1] == Oxygen.TYPE:
                     count += 1
             if count > maximum[1]:
                 maximum[0] = [ngh]
@@ -254,19 +255,10 @@ class Electron(core.Agent):
         max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
 
         if not np.all(max_ngh == pt.coordinates):
-            direction = (np.array(max_ngh) - np.array(pt.coordinates)) * 0.5
-            model.move(self, pt.x + direction[0], pt.y + direction[1])
+            space_pt = model.space.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.7
+            model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
-        # Check the current location for Nadh and generate ROS
-        pt = grid.get_location(self)
-        for obj in grid.get_agents(pt):
-            if obj.uid[1] == Nadh.TYPE:
-                # Generate ROS when interacting with NADH
-                r = ROS(model.ros_id, model.rank)
-                model.ros_id += 1
-                model.context.add(r)
-                model.move(r, pt.x, pt.y)
-                break
 
 
 class Oxygen(core.Agent):
@@ -283,20 +275,42 @@ class Oxygen(core.Agent):
         grid = model.grid
         pt = grid.get_location(self)
         nghs = model.ngh_finder.find(pt.x, pt.y)
-
+        
+        maximum = [[], -(sys.maxsize - 1)]
         for ngh in nghs:
             at = dpt(*ngh)
+            count = 0
             for obj in grid.get_agents(at):
                 if obj.uid[1] == Electron.TYPE:
-                    # Reaction with electron to produce ROS
-                    # Remove the electron and create ROS
-                    model.context.remove(obj)
-                    r = ROS(model.ros_id, model.rank)
-                    model.ros_id += 1
-                    model.context.add(r)
-                    model.move(r, at.x, at.y)
-                    break
-    
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.space.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.7
+            model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
+            
+        pt = grid.get_location(self)
+
+        
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == Electron.TYPE:
+                # Reaction with electron to produce ROS
+                # Remove the electron and create ROS
+                r = ROS(model.ros_id, model.rank)
+                model.ros_id += 1
+                model.context.add(r)
+                model.move(r, pt.x, pt.y)
+                model.context.remove(obj)
+                model.context.remove(self)
+                break
+
 
 agent_cache = {} 
 
