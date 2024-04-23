@@ -78,11 +78,13 @@ class LPS(core.Agent):
     
     def stepMicrobiota(self):
         grid = model.microibiotaGrid
-        pt = grid.get_location(self)
-        #model.moveToLume(self)            
+        pt = grid.get_location(self)   
+                 
     def stepLume(self):
         grid = model.microibiotaGrid
         pt = grid.get_location(self)
+
+
 
 
 class CellulaEpiteliale(core.Agent):
@@ -99,13 +101,6 @@ class CellulaEpiteliale(core.Agent):
     
     def getPermeability(self):
         return self.permeability
-    
-    def getNumberOfSCFA(self):
-       countSCFA = 0
-       for s in model.MicrobiotaContext.agents(SCFA.TYPE):
-           countSCFA += 1
-       
-       return countSCFA
 
     """
     def min_SCFA(self):
@@ -118,9 +113,7 @@ class CellulaEpiteliale(core.Agent):
     """
 
     def step(self):
-        num_SCFA = self.getNumberOfSCFA()
-        if num_SCFA <= 375: #self.min_SCFA():
-            self.permeability += (self.permeability * 15) / 100
+        self.permeability += (self.permeability * 15) / 100
 
 
 """         
@@ -259,6 +252,8 @@ class Model:
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(s, x, y) 
+        
+        self.min_scfa = None #variabile per calcolare il numero minimo di scfa per l'aumento della permeabilità
 
 
         #add lps agents to microbiota context
@@ -320,22 +315,40 @@ class Model:
         self.MicrobiotaContext.remove(agent)
         self.LumeContext.add(agent)
 
+
     def step(self):
         tick = self.runner.schedule.tick    
         self.log_countsMicrobiota(tick) 
-        self.log_countsLume(tick)   
-        self.MicrobiotaContext.synchronize(restore_agent) 
+        self.MicrobiotaContext.synchronize(restore_agent)
 
+        self.LumeContext.synchronize(restore_agent)
+        self.log_countsLume(tick) 
+
+        scfa_count = []
         for s in self.MicrobiotaContext.agents(SCFA.TYPE):
             s.step()
-   
-        for l in self.MicrobiotaContext.agents(LPS.TYPE):  
-            if self.permeability() >= 60:
-                self.moveToLume(l)
-                l.step()
+            scfa_count.append(s)
         
-        for c in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):  
-            c.step()
+        lps_moved = []
+        for l1 in self.MicrobiotaContext.agents(LPS.TYPE):
+            l1.stepMicrobiota()  
+            if self.permeability() >= 60:
+                lps_moved.append(l1)
+        
+        for i in lps_moved:
+            self.moveToLume(i)
+        
+        for l2 in self.LumeContext.agents(LPS.TYPE):
+            l2.stepLume()
+
+        
+        if tick == 1:
+            num_tot_scfa = len(scfa_count)
+            self.min_scfa = num_tot_scfa - (num_tot_scfa * 20) / 100  
+
+        for c in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
+            if len(scfa_count) <= self.min_scfa:
+                c.step()
         
         if tick >= 10:
             self.removeSCFA() 
@@ -344,7 +357,7 @@ class Model:
         for ce in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             permeability = ce.getPermeability()
 
-        print(permeability)
+        #print(permeability)
         return permeability
 
 
@@ -368,7 +381,7 @@ class Model:
         self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
         self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
         self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
-        self.microbiotaCounts.permeability = self.permeability() 
+        self.microbiotaCounts.permeability = self.permeability()
 
         self.microbiotaData_set.log(tick)
     
