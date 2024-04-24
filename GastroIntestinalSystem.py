@@ -64,7 +64,36 @@ class SCFA(core.Agent):
     def step(self):
         grid = model.microibiotaGrid
         pt = grid.get_location(self)
+        nghs = model.ngh_finder.find(pt.x, pt.y)
+
+        at = dpt(0, 0)
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == CellulaEpiteliale.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.microbiotaSpace.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.5
+            model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
+            
+        #pt = grid.get_location(self)
+        #for obj in grid.get_agents(pt):
+            #if obj.uid[1] == CellulaEpiteliale.TYPE:
+                #mucina += 1  #produzione mucina
+                #break
     
+
 
 class LPS(core.Agent):
 
@@ -81,16 +110,14 @@ class LPS(core.Agent):
         pt = grid.get_location(self)   
                  
     def stepLume(self):
-        grid = model.microibiotaGrid
+        grid = model.lumeGrid
         pt = grid.get_location(self)
-
 
 
 
 class CellulaEpiteliale(core.Agent):
 
     TYPE = 2
-
 
     def __init__(self, a_id, rank):
         super().__init__(id = a_id, type = CellulaEpiteliale.TYPE, rank=rank)
@@ -102,19 +129,11 @@ class CellulaEpiteliale(core.Agent):
     def getPermeability(self):
         return self.permeability
 
-    """
-    def min_SCFA(self):
-        scfaTotal = []
-        for i in model.MicrobiotaContext.agents(SCFA.TYPE):
-            scfaTotal.append(i)
-        
-        min_scfa = (len(scfaTotal) * 75) / 100
-        return min_scfa
-    """
-
     def step(self):
-        self.permeability += (self.permeability * 15) / 100
+        if self.permeability <= 80:
+            self.permeability += (self.permeability * 5) / 100
 
+        
 
 """         
 class AlfaSinucleina(core.Agent):
@@ -135,6 +154,21 @@ class AlfaSinucleina(core.Agent):
 #classe TNF-alfa che ha un una variabile booleana "rispostaImmunitaria" che quando gli LPS saranno un numero elevato
 #verrà messa a True. Questo rappresenta lo stato di infiammazione del sistema che porta alla produzione di alpha sinucleina all'intero
 #del sistema gastro intestinale
+
+
+class TNFalfa(core.Agent):
+    TYPE = 3
+
+    def __init__(self, a_id, rank):
+        super().__init__(id = a_id, type = TNFalfa.TYPE, rank=rank)
+        self.rispostaImm=False
+
+    def save(self) -> Tuple:
+        return (self.uid, self.rispostaImm)
+    
+    def step(self):
+        self.rispostaImm = True
+
 
 
 agent_cache = {} 
@@ -168,6 +202,16 @@ def restore_agent(agent_data: Tuple):
         
         c.permeability = agent_data[1]
         return c
+    
+    if uid[1] == TNFalfa.TYPE:
+        if uid in agent_cache:
+            t = agent_cache[uid]
+        else:
+            t = TNFalfa(uid[0], uid[2])
+            agent_cache[uid] = t
+
+        t.rispostaImm = agent_data[1]
+        return t    
 
 
 
@@ -181,6 +225,7 @@ class MicrobiotaCounts:
 @dataclass
 class LumeCounts:
     lps: int = 0
+    tnfAlfa: int = 0
 
 
 class Model:
@@ -219,12 +264,11 @@ class Model:
 
         self.lumeSpace = space.SharedCSpace('space', bounds=box2, borders=space.BorderType.Sticky,
                                         occupancy=space.OccupancyType.Multiple,
-                                        buffer_size=2, comm=comm,
-                                        tree_threshold=100)    
+                                        buffer_size=2, comm=comm, tree_threshold=100)
         self.LumeContext.add_projection(self.lumeSpace)
 
 
-        #self.ngh_finder = GridNghFinder(0, 0, box1.xextent, box1.yextent)
+        self.ngh_finder = GridNghFinder(0, 0, box1.xextent, box1.yextent)
         #self.ngh_finder = GridNghFinder(0, 0, box2.xextent, box2.yextent)
 
         #logging
@@ -298,7 +342,21 @@ class Model:
             self.LumeContext.add(p)    
             x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
             y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
-            self.move(p, x, y)
+            self.moveLume(p, x, y)
+        
+        #add lps to lume context
+        total_tnf_count = params['tnf.count']    
+        pp_tnf_count = int(total_tnf_count / world_size)   #number of lps per processor 
+        if self.rank < total_tnf_count % world_size:    
+            pp_tnf_count += 1
+
+        local_boundsLume = self.lumeSpace.get_local_bounds()    
+        for i in range(pp_tnf_count):    
+            t = TNFalfa(i, self.rank)    
+            self.LumeContext.add(t)    
+            x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
+            y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
+            self.moveLume(t, x, y)
 
         
     def at_endMicrobiota(self):
@@ -310,6 +368,10 @@ class Model:
     def move(self, agent, x, y):
         self.microbiotaSpace.move(agent, cpt(x, y))
         self.microibiotaGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
+    
+    def moveLume(self, agent, x, y):
+        self.lumeSpace.move(agent, cpt(x, y))
+        self.lumeGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
 
     def moveToLume(self, agent):
         self.MicrobiotaContext.remove(agent)
@@ -330,10 +392,13 @@ class Model:
             scfa_count.append(s)
         
         lps_moved = []
+        max_lps_moved = 10
+
         for l1 in self.MicrobiotaContext.agents(LPS.TYPE):
             l1.stepMicrobiota()  
             if self.permeability() >= 60:
-                lps_moved.append(l1)
+                if len(lps_moved) < max_lps_moved:
+                    lps_moved.append(l1)
         
         for i in lps_moved:
             self.moveToLume(i)
@@ -341,7 +406,11 @@ class Model:
         for l2 in self.LumeContext.agents(LPS.TYPE):
             l2.stepLume()
 
-        
+        for t in self.LumeContext.agents(TNFalfa.TYPE):
+            if len(lps_moved) > 100:
+                t.step()
+                #aggiungere generazione alfasinucleina
+
         if tick == 1:
             num_tot_scfa = len(scfa_count)
             self.min_scfa = num_tot_scfa - (num_tot_scfa * 20) / 100  
@@ -353,11 +422,11 @@ class Model:
         if tick >= 10:
             self.removeSCFA() 
 
+
     def permeability(self):
         for ce in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             permeability = ce.getPermeability()
 
-        #print(permeability)
         return permeability
 
 
@@ -367,10 +436,11 @@ class Model:
             num_SCFA.append(i)
             
         countSCFA = len(num_SCFA)
-        if countSCFA > 0:
+        if countSCFA > 10: 
             randomPosition = rd.randint(0, countSCFA - 1)
             self.MicrobiotaContext.remove(num_SCFA[randomPosition])
    
+
     def run(self):
         self.runner.execute()
     
@@ -381,15 +451,17 @@ class Model:
         self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
         self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
         self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
-        self.microbiotaCounts.permeability = self.permeability()
+        self.microbiotaCounts.permeability = self.permeability() 
 
         self.microbiotaData_set.log(tick)
     
 
     def log_countsLume(self, tick):
-        num_LumeAgents= self.LumeContext.size([LPS.TYPE])
+        num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE])
 
         self.lumeCounts.lps = num_LumeAgents[LPS.TYPE]
+        self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
+
         self.lumeData_set.log(tick)
 
 

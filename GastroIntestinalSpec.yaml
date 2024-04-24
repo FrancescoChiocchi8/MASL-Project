@@ -1,8 +1,9 @@
 random.seed : 42
 stop.at : 150.0
 scfa.count : 500
-lps.count : 50
+lps.count : 400
 lpslume.count : 4
+tnf.count: 50
 epitelialCell.count : 100
 microbiotaWorld.width : 500
 microbiotaWorld.height : 500
@@ -11,3 +12,4 @@ lumeWorld.height : 300
 run.number: 1
 logging_file: './output/MicrobiotaOutput_counts.csv'
 lumeLogging_file: './output/lumeOutput_counts.csv'
+
