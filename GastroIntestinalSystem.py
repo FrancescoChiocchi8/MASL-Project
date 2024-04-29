@@ -64,7 +64,36 @@ class SCFA(core.Agent):
     def step(self):
         grid = model.microibiotaGrid
         pt = grid.get_location(self)
+        nghs = model.ngh_finderMicrobiota.find(pt.x, pt.y)
+
+        at = dpt(0, 0)
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == CellulaEpiteliale.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.microbiotaSpace.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.5
+            model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
+            
+        #pt = grid.get_location(self)
+        #for obj in grid.get_agents(pt):
+            #if obj.uid[1] == CellulaEpiteliale.TYPE:
+                #mucina += 1  #produzione mucina
+                #break
     
+
 
 class LPS(core.Agent):
 
@@ -78,19 +107,51 @@ class LPS(core.Agent):
     
     def stepMicrobiota(self):
         grid = model.microibiotaGrid
-        pt = grid.get_location(self)   
-                 
-    def stepLume(self):
-        grid = model.microibiotaGrid
         pt = grid.get_location(self)
 
+        space_pt = model.microbiotaSpace.get_location(self)
+        direction = pt.coordinates * 0.4
+        model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
+  
+                 
+    def stepLume(self):
+        grid = model.lumeGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderLume.find(pt.x, pt.y)
+
+        minimum = [[], sys.maxsize]    
+        at = dpt(0, 0)
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == TNFalfa.TYPE:
+                    count += 1
+            if count < minimum[1]:    
+                minimum[0] = [ngh]
+                minimum[1] = count
+            elif count == minimum[1]:
+                minimum[0].append(ngh)
+
+        min_ngh = minimum[0][random.default_rng.integers(0, len(minimum[0]))]
+
+        if not np.all(min_ngh == pt.coordinates):
+            space_pt = model.lumeSpace.get_location(self)
+            direction = (min_ngh - pt.coordinates) * 0.8
+            model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
+        
+        pt = grid.get_location(self)
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == TNFalfa.TYPE:
+                if model.ImmuneResp() == True:
+                    model.generate_alfasin(pt)
+                break
 
 
 
 class CellulaEpiteliale(core.Agent):
 
     TYPE = 2
-
 
     def __init__(self, a_id, rank):
         super().__init__(id = a_id, type = CellulaEpiteliale.TYPE, rank=rank)
@@ -102,24 +163,13 @@ class CellulaEpiteliale(core.Agent):
     def getPermeability(self):
         return self.permeability
 
-    """
-    def min_SCFA(self):
-        scfaTotal = []
-        for i in model.MicrobiotaContext.agents(SCFA.TYPE):
-            scfaTotal.append(i)
-        
-        min_scfa = (len(scfaTotal) * 75) / 100
-        return min_scfa
-    """
-
     def step(self):
-        self.permeability += (self.permeability * 15) / 100
+        if self.permeability <= 80:
+            self.permeability += (self.permeability * 5) / 100
 
-
-"""         
+        
 class AlfaSinucleina(core.Agent):
-
-    TYPE = 3
+    TYPE = 4
 
     def __init__(self, a_id, rank):
         super().__init__(id = a_id, type = AlfaSinucleina.TYPE, rank=rank)
@@ -127,14 +177,56 @@ class AlfaSinucleina(core.Agent):
     def save(self) -> Tuple:
         return (self.uid,)
     
-    def step(self):
-        grid = model.grid
+    def stepLume(self):
+        grid = model.lumeGrid
         pt = grid.get_location(self)
-"""
 
-#classe TNF-alfa che ha un una variabile booleana "rispostaImmunitaria" che quando gli LPS saranno un numero elevato
-#verrà messa a True. Questo rappresenta lo stato di infiammazione del sistema che porta alla produzione di alpha sinucleina all'intero
-#del sistema gastro intestinale
+        space_pt = model.lumeSpace.get_location(self)
+        direction = pt.coordinates * 0.4
+        model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
+
+
+class TNFalfa(core.Agent):
+    TYPE = 3
+
+    def __init__(self, a_id, rank):
+        super().__init__(id = a_id, type = TNFalfa.TYPE, rank=rank)
+        self.rispostaImm=False
+
+    def save(self) -> Tuple:
+        return (self.uid, self.rispostaImm)
+    
+    def getRispostaImm(self):
+        return self.rispostaImm
+    
+    def step(self):
+        self.rispostaImm = True
+
+        grid = model.lumeGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderLume.find(pt.x, pt.y)
+
+        at = dpt(0, 0)
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == LPS.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.lumeSpace.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.5
+            model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
+
 
 
 agent_cache = {} 
@@ -168,6 +260,24 @@ def restore_agent(agent_data: Tuple):
         
         c.permeability = agent_data[1]
         return c
+    
+    if uid[1] == TNFalfa.TYPE:
+        if uid in agent_cache:
+            t = agent_cache[uid]
+        else:
+            t = TNFalfa(uid[0], uid[2])
+            agent_cache[uid] = t
+
+        t.rispostaImm = agent_data[1]
+        return t   
+
+    if uid[1] == AlfaSinucleina.TYPE:                                                       
+        if uid in agent_cache:
+            return agent_cache[uid]
+        else:
+            a = AlfaSinucleina(uid[0], uid[2])
+            agent_cache[uid] = a
+            return a
 
 
 
@@ -181,6 +291,10 @@ class MicrobiotaCounts:
 @dataclass
 class LumeCounts:
     lps: int = 0
+    tnfAlfa: int = 0
+    #immRespo: bool = False
+    alfasin: int = 0
+
 
 
 class Model:
@@ -224,8 +338,8 @@ class Model:
         self.LumeContext.add_projection(self.lumeSpace)
 
 
-        #self.ngh_finder = GridNghFinder(0, 0, box1.xextent, box1.yextent)
-        #self.ngh_finder = GridNghFinder(0, 0, box2.xextent, box2.yextent)
+        self.ngh_finderMicrobiota = GridNghFinder(0, 0, box1.xextent, box1.yextent)
+        self.ngh_finderLume = GridNghFinder(0, 0, box2.xextent, box2.yextent)
 
         #logging
         self.microbiotaCounts = MicrobiotaCounts()    
@@ -288,7 +402,7 @@ class Model:
 
         #add lps to lume context
         total_lpsLume_count = params['lpslume.count']    
-        pp_lpsLume_count = int(total_lpsLume_count / world_size)   #number of lps per processor 
+        pp_lpsLume_count = int(total_lpsLume_count / world_size)   
         if self.rank < total_lpsLume_count % world_size:    
             pp_lpsLume_count += 1
 
@@ -298,7 +412,40 @@ class Model:
             self.LumeContext.add(p)    
             x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
             y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
-            self.move(p, x, y)
+            self.moveLume(p, x, y)
+        
+        self.lps_id = pp_lpsLume_count
+        
+        #add tnf to lume context
+        total_tnf_count = params['tnf.count']    
+        pp_tnf_count = int(total_tnf_count / world_size)  
+        if self.rank < total_tnf_count % world_size:    
+            pp_tnf_count += 1
+
+        local_boundsLume = self.lumeSpace.get_local_bounds()    
+        for i in range(pp_tnf_count):    
+            t = TNFalfa(i, self.rank)    
+            self.LumeContext.add(t)    
+            x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
+            y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
+            self.moveLume(t, x, y)
+
+
+         #add alfasinucleina to lume context
+        total_alfa_count = params['alfasinucleina.count']    
+        pp_alfa_count = int(total_alfa_count / world_size)  
+        if self.rank < total_alfa_count % world_size:    
+            pp_alfa_count += 1
+
+        local_boundsLume = self.lumeSpace.get_local_bounds()    
+        for i in range(pp_alfa_count):    
+            a = AlfaSinucleina(i, self.rank)    
+            self.LumeContext.add(a)    
+            x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
+            y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
+            self.moveLume(a, x, y)
+
+        self.alfa_id = pp_alfa_count
 
         
     def at_endMicrobiota(self):
@@ -310,10 +457,10 @@ class Model:
     def move(self, agent, x, y):
         self.microbiotaSpace.move(agent, cpt(x, y))
         self.microibiotaGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
-
-    def moveToLume(self, agent):
-        self.MicrobiotaContext.remove(agent)
-        self.LumeContext.add(agent)
+    
+    def moveLume(self, agent, x, y):
+        self.lumeSpace.move(agent, cpt(x, y))
+        self.lumeGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
 
 
     def step(self):
@@ -330,18 +477,25 @@ class Model:
             scfa_count.append(s)
         
         lps_moved = []
+        max_lps_moved = 10 
+
         for l1 in self.MicrobiotaContext.agents(LPS.TYPE):
             l1.stepMicrobiota()  
             if self.permeability() >= 60:
-                lps_moved.append(l1)
+                if len(lps_moved) < max_lps_moved:
+                    lps_moved.append(l1)
         
         for i in lps_moved:
-            self.moveToLume(i)
+            self.MicrobiotaContext.remove(i)
+            self.moveToLume()
         
         for l2 in self.LumeContext.agents(LPS.TYPE):
             l2.stepLume()
 
-        
+        for t in self.LumeContext.agents(TNFalfa.TYPE):
+            if self.getNumberLPS() >= 100:
+                t.step()
+
         if tick == 1:
             num_tot_scfa = len(scfa_count)
             self.min_scfa = num_tot_scfa - (num_tot_scfa * 20) / 100  
@@ -349,17 +503,47 @@ class Model:
         for c in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             if len(scfa_count) <= self.min_scfa:
                 c.step()
+
+        for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
+            a.stepLume()
         
         if tick >= 10:
             self.removeSCFA() 
+        
+
+    def getNumberLPS(self):
+        lps_lume = []
+        for i in self.LumeContext.agents(LPS.TYPE):
+            lps_lume.append(i)
+
+        return len(lps_lume)
+
+    def moveToLume(self):
+        local_boundsLume = self.lumeSpace.get_local_bounds()
+        l = LPS(self.lps_id, self.rank)
+        self.lps_id += 1
+        self.LumeContext.add(l)
+        x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
+        y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
+        self.moveLume(l, x, y)
+
+    def generate_alfasin(self, pt):
+            a = AlfaSinucleina(self.alfa_id, self.rank)
+            self.alfa_id += 1
+            self.LumeContext.add(a)
+            self.moveLume(a, pt.x, pt.y) 
+
+    def ImmuneResp(self):
+        for i in self.LumeContext.agents(TNFalfa.TYPE):
+           immuneResponse = i.getRispostaImm()
+
+        return immuneResponse
 
     def permeability(self):
         for ce in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             permeability = ce.getPermeability()
 
-        #print(permeability)
         return permeability
-
 
     def removeSCFA(self):
         num_SCFA = []
@@ -367,10 +551,11 @@ class Model:
             num_SCFA.append(i)
             
         countSCFA = len(num_SCFA)
-        if countSCFA > 0:
+        if countSCFA > 10: 
             randomPosition = rd.randint(0, countSCFA - 1)
             self.MicrobiotaContext.remove(num_SCFA[randomPosition])
    
+
     def run(self):
         self.runner.execute()
     
@@ -381,15 +566,19 @@ class Model:
         self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
         self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
         self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
-        self.microbiotaCounts.permeability = self.permeability()
+        self.microbiotaCounts.permeability = self.permeability() 
 
         self.microbiotaData_set.log(tick)
     
 
     def log_countsLume(self, tick):
-        num_LumeAgents= self.LumeContext.size([LPS.TYPE])
+        num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE, AlfaSinucleina.TYPE])
 
         self.lumeCounts.lps = num_LumeAgents[LPS.TYPE]
+        self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
+        #self.lumeCounts.immRespo = self.ImmuneResp()
+        self.lumeCounts.alfasin = num_LumeAgents[AlfaSinucleina.TYPE]
+
         self.lumeData_set.log(tick)
 
 
