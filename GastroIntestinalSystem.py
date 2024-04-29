@@ -167,24 +167,6 @@ class CellulaEpiteliale(core.Agent):
         if self.permeability <= 80:
             self.permeability += (self.permeability * 5) / 100
 
-        
-class AlfaSinucleina(core.Agent):
-    TYPE = 4
-
-    def __init__(self, a_id, rank):
-        super().__init__(id = a_id, type = AlfaSinucleina.TYPE, rank=rank)
-
-    def save(self) -> Tuple:
-        return (self.uid,)
-    
-    def stepLume(self):
-        grid = model.lumeGrid
-        pt = grid.get_location(self)
-
-        space_pt = model.lumeSpace.get_location(self)
-        direction = pt.coordinates * 0.4
-        model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
-
 
 class TNFalfa(core.Agent):
     TYPE = 3
@@ -226,6 +208,236 @@ class TNFalfa(core.Agent):
             space_pt = model.lumeSpace.get_location(self)
             direction = (max_ngh - pt.coordinates[0:3]) * 0.5
             model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
+
+
+        
+class AlfaSinucleina(core.Agent):
+    TYPE = 4
+
+    def __init__(self, a_id, rank):
+        super().__init__(id = a_id, type = AlfaSinucleina.TYPE, rank=rank)
+
+    def save(self) -> Tuple:
+        return (self.uid,)
+    
+    def stepLume(self):
+        grid = model.lumeGrid
+        pt = grid.get_location(self)
+
+        space_pt = model.lumeSpace.get_location(self)
+        direction = pt.coordinates * 0.4
+        model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
+
+    def stepNervous(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
+
+        at = dpt(0, 0)
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == Nadh.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.nervousSpace.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.5
+            model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
+
+
+class Nadh(core.Agent):
+    
+    TYPE = 5
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=Nadh.TYPE, rank=rank)
+
+    def save(self) -> Tuple:
+        return (self.uid,)
+    
+    def generate_electron(self, pt):
+        # Generate electron when interacting with NADH
+        e = Electron(model.electron_id, model.rank)
+        model.electron_id += 1
+        model.NervousContext.add(e)
+        model.moveNervous(e, pt.x, pt.y)
+
+    def step(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
+
+        minimum = [[], sys.maxsize]    
+        at = dpt(0, 0)
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == AlfaSinucleina.TYPE:
+                    count += 1
+            if count < minimum[1]:    
+                minimum[0] = [ngh]
+                minimum[1] = count
+            elif count == minimum[1]:
+                minimum[0].append(ngh)
+
+        min_ngh = minimum[0][random.default_rng.integers(0, len(minimum[0]))]
+
+        if not np.all(min_ngh == pt.coordinates):
+            space_pt = model.nervousSpace.get_location(self)
+            direction = (min_ngh - pt.coordinates) * 0.8
+            model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
+            
+        pt = grid.get_location(self)
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == AlfaSinucleina.TYPE:
+                # release of electron with a 0.8 index of probability
+                probability_of_release = 0.8
+                if random.default_rng.uniform(0, 1) <= probability_of_release:
+                    self.generate_electron(pt)
+                break
+
+
+class Electron(core.Agent):
+    
+    TYPE = 6
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=Electron.TYPE, rank=rank)
+
+    def save(self) -> Tuple:
+        return (self.uid,)
+
+    def step(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
+        
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at = dpt(*ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == Oxygen.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.nervousSpace.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.7
+            model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
+
+
+class Oxygen(core.Agent):
+    
+    TYPE = 7
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=Oxygen.TYPE, rank=rank)
+        self.ElectronFusion = False
+
+    def save(self) -> Tuple:
+        return (self.uid, self.ElectronFusion)
+
+    def generate_ros(self, pt):
+        # Generate electron when interacting with NADH
+        r = ROS(model.ros_id, model.rank)
+        model.ros_id += 1
+        model.NervousContext.add(r)
+        model.moveNervous(r, pt.x, pt.y)
+
+    def step(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
+        
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at = dpt(*ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == Electron.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            space_pt = model.nervousSpace.get_location(self)
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.7
+            model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
+            
+        
+        pt = grid.get_location(self)        
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == Electron.TYPE:
+                # Reaction with electron to produce ROS
+                # Remove the electron and create ROS
+                self.ElectronFusion = True
+                self.generate_ros(pt)
+                model.NervousContext.remove(obj)
+                break
+        
+        return(self.ElectronFusion)
+    
+
+class ROS(core.Agent):
+
+    TYPE = 8
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=ROS.TYPE, rank=rank)
+    
+    def save(self) -> Tuple:
+        return (self.uid,)
+
+    def step(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
+
+        minimum = [[], sys.maxsize]    
+        at = dpt(0, 0)
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == Nadh.TYPE:
+                    count += 1
+            if count < minimum[1]:    
+                minimum[0] = [ngh]
+                minimum[1] = count
+            elif count == minimum[1]:
+                minimum[0].append(ngh)
+
+        min_ngh = minimum[0][random.default_rng.integers(0, len(minimum[0]))]
+
+        if not np.all(min_ngh == pt.coordinates):
+            space_pt = model.nervousSpace.get_location(self)
+            direction = (min_ngh - pt.coordinates) * 0.3
+            model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1]) 
+
+
 
 
 
@@ -295,6 +507,14 @@ class LumeCounts:
     #immRespo: bool = False
     alfasin: int = 0
 
+@dataclass
+class NervousCounts:
+    nadh: int = 0
+    alfasinucleina: int = 0
+    ros: int = 0
+    artificialAgent: int = 0
+    electron: int = 0
+    oxygen: int = 0
 
 
 class Model:
@@ -303,6 +523,7 @@ class Model:
         self.comm = comm
         self.MicrobiotaContext = ctx.SharedContext(comm)
         self.LumeContext = ctx.SharedContext(comm)
+        self.NervousContext = ctx.SharedContext(comm)
         self.rank = self.comm.Get_rank()
 
         self.runner = schedule.init_schedule_runner(comm)
@@ -310,8 +531,9 @@ class Model:
         self.runner.schedule_stop(params['stop.at'])
         self.runner.schedule_end_event(self.at_endMicrobiota)
         self.runner.schedule_end_event(self.at_endLume)
+        self.runner.schedule_end_event(self.at_endNervous)
 
-        # microbiota world
+        #Microbiota world
         box1 = space.BoundingBox(0, params['microbiotaWorld.width'], 0, params['microbiotaWorld.height'], 0, 0)    
         self.microibiotaGrid = space.SharedGrid('grid', bounds=box1, borders=space.BorderType.Sticky,
                                      occupancy=space.OccupancyType.Multiple,
@@ -324,7 +546,7 @@ class Model:
                                         tree_threshold=100)    
         self.MicrobiotaContext.add_projection(self.microbiotaSpace)
 
-        # lume world
+        #Lume world
         box2 = space.BoundingBox(0, params['lumeWorld.width'], 0, params['lumeWorld.height'], 0, 0)    
         self.lumeGrid = space.SharedGrid('grid', bounds=box2, borders=space.BorderType.Sticky,
                                      occupancy=space.OccupancyType.Multiple,
@@ -337,9 +559,22 @@ class Model:
                                         tree_threshold=100)    
         self.LumeContext.add_projection(self.lumeSpace)
 
+        #Nervous world
+        box3 = space.BoundingBox(0, params['nervousWorld.width'], 0, params['nervousWorld.height'], 0, 0)    
+        self.nervousGrid = space.SharedGrid('grid', bounds=box3, borders=space.BorderType.Sticky,
+                                     occupancy=space.OccupancyType.Multiple,
+                                     buffer_size=2, comm=comm)    
+        self.NervousContext.add_projection(self.nervousGrid)
+
+        self.nervousSpace = space.SharedCSpace('space', bounds=box3, borders=space.BorderType.Sticky,
+                                        occupancy=space.OccupancyType.Multiple,
+                                        buffer_size=2, comm=comm,
+                                        tree_threshold=100)    
+        self.NervousContext.add_projection(self.nervousSpace)
 
         self.ngh_finderMicrobiota = GridNghFinder(0, 0, box1.xextent, box1.yextent)
         self.ngh_finderLume = GridNghFinder(0, 0, box2.xextent, box2.yextent)
+        self.ngh_finderNervous = GridNghFinder(0, 0, box3.xextent, box3.yextent)
 
         #logging
         self.microbiotaCounts = MicrobiotaCounts()    
@@ -350,6 +585,9 @@ class Model:
         lumeLoggers = logging.create_loggers(self.lumeCounts, op=MPI.SUM, rank=self.rank)    
         self.lumeData_set = logging.ReducingDataSet(lumeLoggers, self.comm, params['lumeLogging_file']) 
 
+        self.nervousCounts = NervousCounts()    
+        nervousLoggers = logging.create_loggers(self.nervousCounts, op=MPI.SUM, rank=self.rank)    
+        self.nervousData_set = logging.ReducingDataSet(nervousLoggers, self.comm, params['nervousLogging_file'])
 
         world_size = comm.Get_size()
 
@@ -367,7 +605,7 @@ class Model:
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(s, x, y) 
         
-        self.min_scfa = None #variabile per calcolare il numero minimo di scfa per l'aumento della permeabilità
+        self.min_scfa = None  #variabile per calcolare il numero minimo di scfa per l'aumento della permeabilità
 
 
         #add lps agents to microbiota context
@@ -454,6 +692,9 @@ class Model:
     def at_endLume(self):
         self.lumeData_set.close()
 
+    def at_endNervous(self):
+        self.nervousData_set.close()
+
     def move(self, agent, x, y):
         self.microbiotaSpace.move(agent, cpt(x, y))
         self.microibiotaGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
@@ -461,6 +702,10 @@ class Model:
     def moveLume(self, agent, x, y):
         self.lumeSpace.move(agent, cpt(x, y))
         self.lumeGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
+
+    def moveNervous(self, agent, x, y):
+        self.nervousSpace.move(agent, cpt(x, y))
+        self.nervousGrid.move(agent, dpt(int(math.floor(x)), int(math.floor(y))))
 
 
     def step(self):

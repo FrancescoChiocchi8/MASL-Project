@@ -10,6 +10,8 @@ microbiotaWorld.width : 500
 microbiotaWorld.height : 500
 lumeWorld.width : 400
 lumeWorld.height : 400
+nervousWorld.width : 500
+nervousWorld.height : 500
 run.number: 1
 logging_file: './output/MicrobiotaOutput_counts.csv'
 lumeLogging_file: './output/lumeOutput_counts.csv'
