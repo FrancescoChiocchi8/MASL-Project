@@ -15,4 +15,3 @@ nervousWorld.height : 500
 run.number: 1
 logging_file: './output/MicrobiotaOutput_counts.csv'
 lumeLogging_file: './output/lumeOutput_counts.csv'
-
