@@ -438,7 +438,51 @@ class ROS(core.Agent):
             model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1]) 
 
 
+class ArtificialAgent(core.Agent):
 
+    TYPE = 9
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=ArtificialAgent.TYPE, rank=rank)
+    
+    def save(self) -> Tuple:
+        return (self.uid,)
+    
+    def remove_agentROS(self, agent):
+        model.NervousContext.remove(agent)
+    
+    def step(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
+        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
+        cpt = model.nervousSpace.get_location(self)
+
+        at = dpt(0, 0)
+        maximum = [[], -(sys.maxsize - 1)]
+        for ngh in nghs:
+            at._reset_from_array(ngh)
+            count = 0
+            for obj in grid.get_agents(at):
+                if obj.uid[1] == ROS.TYPE:
+                    count += 1
+            if count > maximum[1]:
+                maximum[0] = [ngh]
+                maximum[1] = count
+            elif count == maximum[1]:
+                maximum[0].append(ngh)
+        
+        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
+
+        if not np.all(max_ngh == pt.coordinates):
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.4
+            model.moveNervous(self, cpt.x + direction[0], cpt.y + direction[1])
+
+        pt = grid.get_location(self)
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == ROS.TYPE:
+                self.remove_agentROS(obj)
+                break
+        
 
 
 agent_cache = {} 
@@ -490,6 +534,48 @@ def restore_agent(agent_data: Tuple):
             a = AlfaSinucleina(uid[0], uid[2])
             agent_cache[uid] = a
             return a
+    
+    if uid[1] == Nadh.TYPE:                                      
+        if uid in agent_cache:                                  
+            return agent_cache[uid]
+        else:
+            n = Nadh(uid[0], uid[2])
+            agent_cache[uid] = n
+            return n
+    
+    if uid[1] == Electron.TYPE:                                      
+        if uid in agent_cache:                                  
+            return agent_cache[uid]
+        else:
+            e = Electron(uid[0], uid[2])
+            agent_cache[uid] = e
+            return e
+        
+    if uid[1] == Oxygen.TYPE:                                      
+        if uid in agent_cache:                                  
+            o = agent_cache[uid]
+        else:
+            o = Oxygen(uid[0], uid[2])
+            agent_cache[uid] = o
+        
+        o.ElectronFusion = agent_data[1]
+        return o
+    
+    if uid[1] == ROS.TYPE:                                                       
+        if uid in agent_cache:
+            return agent_cache[uid]
+        else:
+            r = ROS(uid[0], uid[2])
+            agent_cache[uid] = r
+            return r
+        
+    if uid[1] == ArtificialAgent.TYPE:                                                       
+        if uid in agent_cache:
+            return agent_cache[uid]
+        else:
+            q = ArtificialAgent(uid[0], uid[2])
+            agent_cache[uid] = q
+            return q
 
 
 
@@ -685,6 +771,96 @@ class Model:
 
         self.alfa_id = pp_alfa_count
 
+        #add nadh agents to context
+        total_nadh_count = params['nadh.count']    
+        pp_nadh_count = int(total_nadh_count / world_size)  
+        if self.rank < total_nadh_count % world_size:    
+            pp_nadh_count += 1
+        
+        local_boundsNervous = self.nervousSpace.get_local_bounds()    
+        for i in range(pp_nadh_count):    
+            h = Nadh(i, self.rank)    
+            self.NervousContext.add(h)    
+            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
+            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+            self.moveNervous(h, x, y) 
+
+        #add Alfasinucleina agents to context
+        total_alfaN_count = params['alfasinucleinaNervous.count']
+        pp_alfaN_count = int(total_alfaN_count / world_size)
+        if self.rank < total_alfaN_count % world_size:
+            pp_alfaN_count += 1
+        
+        local_boundsNervous = self.nervousSpace.get_local_bounds() 
+        for i in range(pp_alfaN_count):
+            alf = AlfaSinucleina(i, self.rank)
+            self.NervousContext.add(alf)
+            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)
+            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+            self.moveNervous(alf, x, y)
+
+        self.alfa_idN = pp_alfaN_count
+
+        #add ros agents to context
+        total_ros_count = params['ros.count']    
+        pp_ros_count = int(total_ros_count / world_size)   #number of ros per processor 
+        if self.rank < total_ros_count % world_size:    
+            pp_ros_count += 1
+        
+        local_boundsNervous = self.nervousSpace.get_local_bounds()    
+        for i in range(pp_ros_count):    
+            r = ROS(i, self.rank)    
+            self.NervousContext.add(r)    
+            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
+            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+            self.moveNervous(r, x, y) 
+
+        self.ros_id = pp_ros_count
+
+        #add electron agents to context
+        total_el_count = params['electron.count']    
+        pp_el_count = int(total_el_count / world_size) 
+        if self.rank < total_el_count % world_size:    
+            pp_el_count += 1
+        
+        local_boundsNervous = self.nervousSpace.get_local_bounds()  
+        for i in range(pp_el_count):    
+            e = Electron(i, self.rank)    
+            self.NervousContext.add(e)    
+            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
+            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+            self.moveNervous(e, x, y) 
+        
+        self.electron_id = pp_el_count
+
+        #add oxygen agents to context
+        total_ox_count = params['oxygen.count']    
+        pp_ox_count = int(total_ox_count / world_size) 
+        if self.rank < total_ox_count % world_size:    
+            pp_ox_count += 1
+        
+        local_boundsNervous = self.nervousSpace.get_local_bounds()  
+        for i in range(pp_ox_count):    
+            o = Oxygen(i, self.rank)    
+            self.NervousContext.add(o)    
+            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
+            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+            self.moveNervous(o, x, y) 
+
+        #add artificialAgent agents to context
+        total_aa_count = params['artificialagent.count']    
+        pp_aa_count = int(total_aa_count / world_size) 
+        if self.rank < total_aa_count % world_size:    
+            pp_aa_count += 1
+        
+        local_boundsNervous = self.nervousSpace.get_local_bounds()  
+        for i in range(pp_aa_count):    
+            q = ArtificialAgent(i, self.rank)    
+            self.NervousContext.add(q)    
+            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
+            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+            self.moveNervous(q, x, y)
+
         
     def at_endMicrobiota(self):
         self.microbiotaData_set.close()
@@ -715,6 +891,9 @@ class Model:
 
         self.LumeContext.synchronize(restore_agent)
         self.log_countsLume(tick) 
+
+        self.NervousContext.synchronize(restore_agent)
+        self.log_countsNervous(tick)
 
         scfa_count = []
         for s in self.MicrobiotaContext.agents(SCFA.TYPE):
@@ -749,11 +928,43 @@ class Model:
             if len(scfa_count) <= self.min_scfa:
                 c.step()
 
+        alfa_moved = []
+        max_alfa_moved = 6 
         for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
             a.stepLume()
+            if len(alfa_moved) < max_alfa_moved:
+                alfa_moved.append(a)
+        
+        for al in alfa_moved:
+            self.LumeContext.remove(al)
+            self.moveToNervous()
+        
+        for alf in self.NervousContext.agents(AlfaSinucleina.TYPE):
+            alf.stepNervous()
         
         if tick >= 10:
-            self.removeSCFA() 
+            self.removeSCFA()
+
+        for e in self.NervousContext.agents(Electron.TYPE):    
+            e.step()
+        
+        oxigen_fusion = []
+        for o in self.NervousContext.agents(Oxygen.TYPE):
+            fusion = o.step()
+            if fusion == True:
+                oxigen_fusion.append(o)
+
+        for i in oxigen_fusion:
+            self.NervousContext.remove(i)
+            
+        for h in self.NervousContext.agents(Nadh.TYPE):    
+            h.step()
+        
+        for r in self.NervousContext.agents(ROS.TYPE):
+            r.step()
+
+        for q in self.NervousContext.agents(ArtificialAgent.TYPE):
+            q.step() 
         
 
     def getNumberLPS(self):
@@ -771,6 +982,15 @@ class Model:
         x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)    
         y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
         self.moveLume(l, x, y)
+
+    def moveToNervous(self):
+        local_boundsNervous = self.nervousSpace.get_local_bounds()
+        a = AlfaSinucleina(self.alfa_idN, self.rank)
+        self.alfa_idN += 1
+        self.NervousContext.add(a)
+        x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)
+        y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
+        self.moveNervous(a, x, y)
 
     def generate_alfasin(self, pt):
             a = AlfaSinucleina(self.alfa_id, self.rank)
@@ -826,7 +1046,17 @@ class Model:
 
         self.lumeData_set.log(tick)
 
+    def log_countsNervous(self, tick):
+        num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, ArtificialAgent.TYPE, Electron.TYPE, Oxygen.TYPE])    
+        
+        self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]    
+        self.nervousCounts.alfasinucleina = num_NervousAgents[AlfaSinucleina.TYPE] 
+        self.nervousCounts.ros = num_NervousAgents[ROS.TYPE]      
+        self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
+        self.nervousCounts.electron = num_NervousAgents[Electron.TYPE]
+        self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
 
+        self.nervousData_set.log(tick)
 
 def run(params: Dict):
     global model    

@@ -5,14 +5,20 @@ lps.count : 400
 lpslume.count : 8
 tnf.count: 100
 alfasinucleina.count: 4
+alfasinucleinaNervous.count : 4
 epitelialCell.count : 100
+nadh.count : 500
+ros.count : 10
+artificialagent.count : 10
+electron.count : 20
+oxygen.count : 400
 microbiotaWorld.width : 500
 microbiotaWorld.height : 500
 lumeWorld.width : 400
 lumeWorld.height : 400
 nervousWorld.width : 500
 nervousWorld.height : 500
-run.number: 1
-logging_file: './output/MicrobiotaOutput_counts.csv'
-lumeLogging_file: './output/lumeOutput_counts.csv'
-
+run.number : 1
+logging_file : './output/MicrobiotaOutput_counts.csv'
+lumeLogging_file : './output/LumeOutput_counts.csv'
+nervousLogging_file : './output/NervousOutput_counts.csv'
