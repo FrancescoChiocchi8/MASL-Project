@@ -305,6 +305,7 @@ class Nadh(core.Agent):
                 break
 
 
+
 class Electron(core.Agent):
     
     TYPE = 6
@@ -442,7 +443,7 @@ class ArtificialAgent(core.Agent):
     def save(self) -> Tuple:
         return (self.uid,)
     
-    def remove_agentROS(self, agent):
+    def remove_Electron(self, agent):
         model.NervousContext.remove(agent)
     
     def step(self):
@@ -457,7 +458,7 @@ class ArtificialAgent(core.Agent):
             at._reset_from_array(ngh)
             count = 0
             for obj in grid.get_agents(at):
-                if obj.uid[1] == ROS.TYPE:
+                if obj.uid[1] == Electron.TYPE:
                     count += 1
             if count > maximum[1]:
                 maximum[0] = [ngh]
@@ -473,8 +474,8 @@ class ArtificialAgent(core.Agent):
 
         pt = grid.get_location(self)
         for obj in grid.get_agents(pt):
-            if obj.uid[1] == ROS.TYPE:
-                self.remove_agentROS(obj)
+            if obj.uid[1] == Electron.TYPE:
+                self.remove_Electron(obj)
                 break
         
 
@@ -963,8 +964,9 @@ class Model:
             for r in self.NervousContext.agents(ROS.TYPE):
                 r.step()
 
-        for q in self.NervousContext.agents(ArtificialAgent.TYPE):
-            q.step() 
+        if self.NervousContext.contains_type(ArtificialAgent.TYPE):
+            for q in self.NervousContext.agents(ArtificialAgent.TYPE):
+                q.step() 
         
 
     def getNumberLPS(self):
@@ -1057,27 +1059,34 @@ class Model:
 
     def log_countsNervous(self, tick):
         if self.NervousContext.contains_type(AlfaSinucleina.TYPE):
-            num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+            num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Oxygen.TYPE])    
 
             self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]    
             self.nervousCounts.alfasinucleina = num_NervousAgents[AlfaSinucleina.TYPE]      
             self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
-            self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
+            #self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
 
             if self.NervousContext.contains_type(Electron.TYPE):
-                num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Electron.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+                num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Electron.TYPE, Oxygen.TYPE])    
                 self.nervousCounts.electron = num_NervousAgents[Electron.TYPE] 
 
                 if self.NervousContext.contains_type(ROS.TYPE):
-                    num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, Electron.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+                    num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, Electron.TYPE, Oxygen.TYPE])    
                     self.nervousCounts.ros = num_NervousAgents[ROS.TYPE] 
+
            
         else:
-            num_NervousAgents = self.NervousContext.size([Nadh.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+            num_NervousAgents = self.NervousContext.size([Nadh.TYPE, Oxygen.TYPE])    
         
             self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]       
             self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
-            self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
+            #self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
+
+
+        if self.NervousContext.contains_type(ArtificialAgent.TYPE):
+            num_NervousAgents = self.NervousContext.size([ArtificialAgent.TYPE])   
+            self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
+
 
         self.nervousData_set.log(tick)
 
