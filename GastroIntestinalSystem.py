@@ -146,7 +146,6 @@ class LPS(core.Agent):
                 break
 
 
-
 class CellulaEpiteliale(core.Agent):
 
     TYPE = 2
@@ -181,7 +180,6 @@ class TNFalfa(core.Agent):
     
     def step(self):
         self.rispostaImm = True
-
         grid = model.lumeGrid
         pt = grid.get_location(self)
         nghs = model.ngh_finderLume.find(pt.x, pt.y)
@@ -564,9 +562,11 @@ def restore_agent(agent_data: Tuple):
             agent_cache[uid] = r
             return r
         
-    if uid[1] == ArtificialAgent.TYPE:                                                       
+    if uid[1] == ArtificialAgent.TYPE:
+        
         if uid in agent_cache:
             return agent_cache[uid]
+        
         else:
             q = ArtificialAgent(uid[0], uid[2])
             agent_cache[uid] = q
@@ -585,7 +585,6 @@ class MicrobiotaCounts:
 class LumeCounts:
     lps: int = 0
     tnfAlfa: int = 0
-    #immRespo: bool = False
     alfasin: int = 0
 
 @dataclass
@@ -694,7 +693,6 @@ class Model:
         pp_lps_count = int(total_lps_count / world_size)   #number of lps per processor 
         if self.rank < total_lps_count % world_size:    
             pp_lps_count += 1
-
         
         for i in range(pp_lps_count):    
             l = LPS(i, self.rank)    
@@ -710,13 +708,13 @@ class Model:
         if self.rank < total_epitCell_count % world_size:
             pp_epitCell_count += 1
         
-         
         for i in range(pp_epitCell_count):    
             c = CellulaEpiteliale(i, self.rank)    
             self.MicrobiotaContext.add(c)    
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(c, x, y)
+
 
         #add lps to lume context
         total_lpsLume_count = params['lpslume.count']    
@@ -749,7 +747,7 @@ class Model:
             self.moveLume(t, x, y)
 
 
-         #add alfasinucleina to lume context
+        #add alfasinucleina to lume context
         total_alfa_count = params['alfasinucleina.count']    
         pp_alfa_count = int(total_alfa_count / world_size)  
         if self.rank < total_alfa_count % world_size:    
@@ -785,7 +783,6 @@ class Model:
         if self.rank < total_alfaN_count % world_size:
             pp_alfaN_count += 1
         
-        
         for i in range(pp_alfaN_count):
             alf = AlfaSinucleina(i, self.rank)
             self.NervousContext.add(alf)
@@ -795,12 +792,12 @@ class Model:
 
         self.alfa_idN = pp_alfaN_count
 
+
         #add ros agents to context
         total_ros_count = params['ros.count']    
         pp_ros_count = int(total_ros_count / world_size)    
         if self.rank < total_ros_count % world_size:    
             pp_ros_count += 1
-        
         
         for i in range(pp_ros_count):    
             r = ROS(i, self.rank)    
@@ -815,8 +812,7 @@ class Model:
         total_el_count = params['electron.count']    
         pp_el_count = int(total_el_count / world_size) 
         if self.rank < total_el_count % world_size:    
-            pp_el_count += 1
-        
+            pp_el_count += 1       
          
         for i in range(pp_el_count):    
             e = Electron(i, self.rank)    
@@ -832,7 +828,6 @@ class Model:
         pp_ox_count = int(total_ox_count / world_size) 
         if self.rank < total_ox_count % world_size:    
             pp_ox_count += 1
-        
          
         for i in range(pp_ox_count):    
             o = Oxygen(i, self.rank)    
@@ -1073,8 +1068,7 @@ class Model:
                 if self.NervousContext.contains_type(ROS.TYPE):
                     num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, Electron.TYPE, Oxygen.TYPE])    
                     self.nervousCounts.ros = num_NervousAgents[ROS.TYPE] 
-
-           
+              
         else:
             num_NervousAgents = self.NervousContext.size([Nadh.TYPE, Oxygen.TYPE])    
         
@@ -1082,11 +1076,9 @@ class Model:
             self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
             #self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
 
-
         if self.NervousContext.contains_type(ArtificialAgent.TYPE):
             num_NervousAgents = self.NervousContext.size([ArtificialAgent.TYPE])   
             self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
-
 
         self.nervousData_set.log(tick)
 

@@ -1,5 +1,5 @@
 random.seed : 42
-stop.at : 500.0
+stop.at : 1000.0
 scfa.count : 500
 lps.count : 400
 lpslume.count : 0
@@ -9,7 +9,7 @@ alfasinucleinaNervous.count : 0
 epitelialCell.count : 100
 nadh.count : 500
 ros.count : 0
-artificialagent.count : 10
+artificialagent.count : 100
 electron.count : 0
 oxygen.count : 400
 microbiotaWorld.width : 500

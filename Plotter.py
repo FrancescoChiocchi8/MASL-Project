@@ -11,85 +11,104 @@ def plot_data(data, x_col, y_col, label, color, linestyle='-', marker='o', title
         plt.title(title)
     plt.legend()
     plt.grid(True)
-
-    if 'microbiota' in save_dir.lower():
-        save_path = os.path.join(save_dir, f"microbiota_{label.lower().replace(' ', '_')}_plot.png")
-    elif 'cns' in save_dir.lower():
-        save_path = os.path.join(save_dir, f"cns_{label.lower().replace(' ', '_')}_plot.png")
-    else:
-        save_path = os.path.join(save_dir, f"lume_{label.lower().replace(' ', '_')}_plot.png")
-
+    
+    save_path = os.path.join(save_dir, f"{label.lower().replace(' ', '_')}_plot.png")
     count = 1
     while os.path.exists(save_path):
-        if 'microbiota' in save_dir.lower():
-            save_path = os.path.join(save_dir, f"microbiota_{label.lower().replace(' ', '_')}_plot_{count}.png")
-        elif 'cns' in save_dir.lower():
-            save_path = os. path.join(save_dir, f"cns_{label.lower().replace(' ', '_')}_plot_{count}.png")
-        else:
-            save_path = os.path.join(save_dir, f"lume_{label.lower().replace(' ', '_')}_plot_{count}.png")
+        save_path = os.path.join(save_dir, f"{label.lower().replace(' ', '_')}_plot_{count}.png")
         count += 1
-
+        
     plt.savefig(save_path)
     plt.close()
 
 def plot_agent_behavior(data_path, agent_types, title, output_path):
     data = pd.read_csv(data_path)
-
     ticks = data['tick']
-
-    for agent_type in agent_types:
-        plt.plot(ticks, data[agent_type], label=agent_type)
-
+    colors = plt.cm.tab20.colors
+    for agent_type, color in zip(agent_types, colors):
+        plt.plot(ticks, data[agent_type], label=agent_type, color=color)
     plt.xlabel('Tick')
     plt.ylabel('Agents')
     plt.title(title)
     plt.legend()
-
     output_folder = os.path.dirname(output_path)
     os.makedirs(output_folder, exist_ok=True)
 
-    plt.savefig(output_path)
+    output_file = output_path
+    count = 1
+    while os.path.exists(output_file):
+        base, ext = os.path.splitext(output_path)
+        output_file = f"{base}_{count}{ext}"
+        count += 1
 
+    plt.savefig(output_file)
     plt.close()
 
-data1 = pd.read_csv('output/MicrobiotaOutput_counts.csv')
-data2 = pd.read_csv('output/lumeOutput_counts.csv')
-data3 = pd.read_csv('output/agent_counts.csv')
+def aggregate_plots(scenarios, save_path):
+    plt.figure(figsize=(12, 8))
+    colors = plt.cm.tab20.colors
+
+    for i, scenario in enumerate(scenarios):
+        data = pd.read_csv(scenario['data_path'])
+        ticks = data['tick']
+        for j, agent_type in enumerate(scenario['agent_types']):
+            color = colors[(i * len(scenario['agent_types']) + j) % len(colors)]
+            plt.plot(ticks, data[agent_type], label=f"{scenario['title']} - {agent_type}", color=color)
+
+    plt.xlabel('Tick')
+    plt.ylabel('Agents')
+    plt.title('All systems Visualization')
+    plt.legend()
+    plt.grid(True)
+
+    count = 1
+    while os.path.exists(save_path):
+        base, ext = os.path.splitext(save_path)
+        save_path = f"{base}_{count}{ext}"
+        count += 1
+
+    plt.savefig(save_path)
+    plt.close()
+
+data1 = pd.read_csv('output/MicrobiotaOutput_counts_5.csv')
+data2 = pd.read_csv('output/LumeOutput_counts_5.csv')
+data3 = pd.read_csv('output/NervousOutput_counts_5.csv')
 
 plots1 = [
-    {'y_col': 'scfa', 'label': 'SCFA', 'color': 'blue', 'title': 'SCFA respect to Tick'},
-    {'y_col': 'permeability', 'label': 'Permeability', 'color': 'green', 'title': 'Permeability respect to Tick'},
-    {'y_col': 'lps', 'label': 'LPS', 'color': 'red', 'title': 'LPS respect to Tick'}
+    {'y_col': 'scfa', 'label': 'SCFA', 'title': 'SCFA respect to Tick'},
+    {'y_col': 'permeability', 'label': 'Permeability', 'title': 'Permeability respect to Tick'},
+    {'y_col': 'lps', 'label': 'LPS', 'title': 'LPS respect to Tick'}
 ]
 
 plots2 = [
-    {'y_col': 'lps', 'label': 'LPS', 'color': 'purple', 'title': 'LPS respect to Tick'},
-    {'y_col': 'tnfAlfa', 'label': 'TNF-Alpha', 'color': 'orange', 'title': 'TNF-Alpha respect to Tick'}
+    {'y_col': 'lps', 'label': 'LPS', 'title': 'LPS respect to Tick'},
+    {'y_col': 'tnfAlfa', 'label': 'TNF-Alpha', 'title': 'TNF-Alpha respect to Tick'},
+    {'y_col': 'alfasin', 'label': 'alfasin', 'title': 'Alfasin respect to Tick'}
 ]
 
 plots3 = [
-    {'y_col': 'nadh', 'label': 'NADH', 'color': 'blue', 'title': 'NADH respect to Tick'},
-    {'y_col': 'ros', 'label': 'ROS', 'color': 'red', 'title': 'ROS respect to Tick'},
-    {'y_col': 'alfasinucleina', 'label': 'Alfa-sinucleina', 'color': 'green', 'title': 'Alfa-sinucleina respect to Tick'},
-    {'y_col': 'electron', 'label': 'Electron', 'color': 'purple', 'title': 'Electron respect to Tick'},
-    {'y_col': 'oxygen', 'label': 'Oxygen', 'color': 'orange', 'title': 'Oxygen respect to Tick'}
+    {'y_col': 'nadh', 'label': 'NADH', 'title': 'NADH respect to Tick'},
+    {'y_col': 'ros', 'label': 'ROS', 'title': 'ROS respect to Tick'},
+    {'y_col': 'alfasinucleina', 'label': 'Alfa-sinucleina', 'title': 'Alfa-sinucleina respect to Tick'},
+    {'y_col': 'electron', 'label': 'Electron', 'title': 'Electron respect to Tick'},
+    {'y_col': 'oxygen', 'label': 'Oxygen', 'title': 'Oxygen respect to Tick'}
 ]
 
 scenarios = [
     {
-        'data_path': 'output/agent_counts.csv',
+        'data_path': 'output/NervousOutput_counts_5.csv',
         'agent_types': ['nadh', 'alfasinucleina', 'ros', 'artificialAgent', 'electron', 'oxygen'],
         'title': 'CNS - Behavior of the agents',
         'output_path': 'output/graphs/cns/all/cns_plot.png'
     },
     {
-        'data_path': 'output/lumeOutput_counts.csv',
-        'agent_types': ['lps', 'tnfAlfa'],
+        'data_path': 'output/LumeOutput_counts_5.csv',
+        'agent_types': ['lps', 'tnfAlfa', 'alfasin'],
         'title': 'LUME - Behavior of the agents',
         'output_path': 'output/graphs/lume/all/lume_plot.png'
     },
     {
-        'data_path': 'output/MicrobiotaOutput_counts.csv',
+        'data_path': 'output/MicrobiotaOutput_counts_5.csv',
         'agent_types': ['scfa', 'lps', 'permeability', 'cellEpit'],
         'title': 'MICROBIOTA - Behavior of the agents',
         'output_path': 'output/graphs/microbiota/all/microbiota_plot.png'
@@ -97,13 +116,15 @@ scenarios = [
 ]
 
 for plot in plots1:
-    plot_data(data1, 'tick', plot['y_col'], plot['label'], plot['color'], title=plot['title'], save_dir='output/graphs/microbiota')
+    plot_data(data1, 'tick', plot['y_col'], plot['label'], color='blue', title=plot['title'], save_dir='output/graphs/microbiota')
 
 for plot in plots2:
-    plot_data(data2, 'tick', plot['y_col'], plot['label'], plot['color'], title=plot['title'], save_dir='output/graphs/lume')
+    plot_data(data2, 'tick', plot['y_col'], plot['label'], color='purple', title=plot['title'], save_dir='output/graphs/lume')
 
 for plot in plots3:
-    plot_data(data3, 'tick', plot['y_col'], plot['label'], plot['color'], title=plot['title'], save_dir='output/graphs/cns')
+    plot_data(data3, 'tick', plot['y_col'], plot['label'], color='green', title=plot['title'], save_dir='output/graphs/cns')
 
 for scenario in scenarios:
     plot_agent_behavior(scenario['data_path'], scenario['agent_types'], scenario['title'], scenario['output_path'])
+
+aggregate_plots(scenarios, 'output/graphs/all_plots_combined.png')
