@@ -13,6 +13,10 @@ from mpi4py import MPI
 from numba import int32
 from numba.experimental import jitclass
 from repast4py import parameters
+import os
+
+
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
 model = None
@@ -87,12 +91,6 @@ class SCFA(core.Agent):
             direction = (max_ngh - pt.coordinates[0:3]) * 0.5
             model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
             
-        #pt = grid.get_location(self)
-        #for obj in grid.get_agents(pt):
-            #if obj.uid[1] == CellulaEpiteliale.TYPE:
-                #mucina += 1  #produzione mucina
-                #break
-    
 
 
 class LPS(core.Agent):
@@ -266,7 +264,6 @@ class Nadh(core.Agent):
         return (self.uid,)
     
     def generate_electron(self, pt):
-        # Generate electron when interacting with NADH
         e = Electron(model.electron_id, model.rank)
         model.electron_id += 1
         model.NervousContext.add(e)
@@ -356,7 +353,6 @@ class Oxygen(core.Agent):
         return (self.uid, self.ElectronFusion)
 
     def generate_ros(self, pt):
-        # Generate electron when interacting with NADH
         r = ROS(model.ros_id, model.rank)
         model.ros_id += 1
         model.NervousContext.add(r)
@@ -391,8 +387,6 @@ class Oxygen(core.Agent):
         pt = grid.get_location(self)        
         for obj in grid.get_agents(pt):
             if obj.uid[1] == Electron.TYPE:
-                # Reaction with electron to produce ROS
-                # Remove the electron and create ROS
                 self.ElectronFusion = True
                 self.generate_ros(pt)
                 model.NervousContext.remove(obj)
@@ -700,7 +694,7 @@ class Model:
         if self.rank < total_lps_count % world_size:    
             pp_lps_count += 1
 
-        local_bounds = self.microbiotaSpace.get_local_bounds()    
+        
         for i in range(pp_lps_count):    
             l = LPS(i, self.rank)    
             self.MicrobiotaContext.add(l)    
@@ -715,14 +709,13 @@ class Model:
         if self.rank < total_epitCell_count % world_size:
             pp_epitCell_count += 1
         
-        local_bounds = self.microbiotaSpace.get_local_bounds()  
+         
         for i in range(pp_epitCell_count):    
             c = CellulaEpiteliale(i, self.rank)    
             self.MicrobiotaContext.add(c)    
             x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(c, x, y)
-
 
         #add lps to lume context
         total_lpsLume_count = params['lpslume.count']    
@@ -746,7 +739,7 @@ class Model:
         if self.rank < total_tnf_count % world_size:    
             pp_tnf_count += 1
 
-        local_boundsLume = self.lumeSpace.get_local_bounds()    
+          
         for i in range(pp_tnf_count):    
             t = TNFalfa(i, self.rank)    
             self.LumeContext.add(t)    
@@ -761,7 +754,7 @@ class Model:
         if self.rank < total_alfa_count % world_size:    
             pp_alfa_count += 1
 
-        local_boundsLume = self.lumeSpace.get_local_bounds()    
+            
         for i in range(pp_alfa_count):    
             a = AlfaSinucleina(i, self.rank)    
             self.LumeContext.add(a)    
@@ -791,7 +784,7 @@ class Model:
         if self.rank < total_alfaN_count % world_size:
             pp_alfaN_count += 1
         
-        local_boundsNervous = self.nervousSpace.get_local_bounds() 
+        
         for i in range(pp_alfaN_count):
             alf = AlfaSinucleina(i, self.rank)
             self.NervousContext.add(alf)
@@ -803,11 +796,11 @@ class Model:
 
         #add ros agents to context
         total_ros_count = params['ros.count']    
-        pp_ros_count = int(total_ros_count / world_size)   #number of ros per processor 
+        pp_ros_count = int(total_ros_count / world_size)    
         if self.rank < total_ros_count % world_size:    
             pp_ros_count += 1
         
-        local_boundsNervous = self.nervousSpace.get_local_bounds()    
+        
         for i in range(pp_ros_count):    
             r = ROS(i, self.rank)    
             self.NervousContext.add(r)    
@@ -823,7 +816,7 @@ class Model:
         if self.rank < total_el_count % world_size:    
             pp_el_count += 1
         
-        local_boundsNervous = self.nervousSpace.get_local_bounds()  
+         
         for i in range(pp_el_count):    
             e = Electron(i, self.rank)    
             self.NervousContext.add(e)    
@@ -839,7 +832,7 @@ class Model:
         if self.rank < total_ox_count % world_size:    
             pp_ox_count += 1
         
-        local_boundsNervous = self.nervousSpace.get_local_bounds()  
+         
         for i in range(pp_ox_count):    
             o = Oxygen(i, self.rank)    
             self.NervousContext.add(o)    
@@ -853,7 +846,7 @@ class Model:
         if self.rank < total_aa_count % world_size:    
             pp_aa_count += 1
         
-        local_boundsNervous = self.nervousSpace.get_local_bounds()  
+          
         for i in range(pp_aa_count):    
             q = ArtificialAgent(i, self.rank)    
             self.NervousContext.add(q)    
@@ -888,7 +881,6 @@ class Model:
         tick = self.runner.schedule.tick    
         self.log_countsMicrobiota(tick) 
         self.MicrobiotaContext.synchronize(restore_agent)
-
         self.LumeContext.synchronize(restore_agent)
         self.log_countsLume(tick) 
 
@@ -913,8 +905,9 @@ class Model:
             self.MicrobiotaContext.remove(i)
             self.moveToLume()
         
-        for l2 in self.LumeContext.agents(LPS.TYPE):
-            l2.stepLume()
+        if self.LumeContext.contains_type(LPS.TYPE):
+            for l2 in self.LumeContext.agents(LPS.TYPE):
+                l2.stepLume()
 
         for t in self.LumeContext.agents(TNFalfa.TYPE):
             if self.getNumberLPS() >= 100:
@@ -929,24 +922,30 @@ class Model:
                 c.step()
 
         alfa_moved = []
-        max_alfa_moved = 6 
-        for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
-            a.stepLume()
-            if len(alfa_moved) < max_alfa_moved:
+        max_alfa_moved = 30 
+        numAlfa_to_remove = rd.randint(0, 10)
+        if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
+            for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
+                a.stepLume()
                 alfa_moved.append(a)
-        
-        for al in alfa_moved:
-            self.LumeContext.remove(al)
-            self.moveToNervous()
-        
-        for alf in self.NervousContext.agents(AlfaSinucleina.TYPE):
-            alf.stepNervous()
+
+        if len(alfa_moved) >= max_alfa_moved:
+            for _ in range(numAlfa_to_remove):
+                if alfa_moved:
+                    al = alfa_moved.pop(0)
+                    self.LumeContext.remove(al)
+                    self.moveToNervous()
+
+        if self.NervousContext.contains_type(AlfaSinucleina.TYPE):
+            for alf in self.NervousContext.agents(AlfaSinucleina.TYPE):
+                alf.stepNervous()
         
         if tick >= 10:
             self.removeSCFA()
 
-        for e in self.NervousContext.agents(Electron.TYPE):    
-            e.step()
+        if self.NervousContext.contains_type(Electron.TYPE):
+            for e in self.NervousContext.agents(Electron.TYPE):    
+                e.step()
         
         oxigen_fusion = []
         for o in self.NervousContext.agents(Oxygen.TYPE):
@@ -960,8 +959,9 @@ class Model:
         for h in self.NervousContext.agents(Nadh.TYPE):    
             h.step()
         
-        for r in self.NervousContext.agents(ROS.TYPE):
-            r.step()
+        if self.NervousContext.contains_type(ROS.TYPE):
+            for r in self.NervousContext.agents(ROS.TYPE):
+                r.step()
 
         for q in self.NervousContext.agents(ArtificialAgent.TYPE):
             q.step() 
@@ -969,8 +969,9 @@ class Model:
 
     def getNumberLPS(self):
         lps_lume = []
-        for i in self.LumeContext.agents(LPS.TYPE):
-            lps_lume.append(i)
+        if self.LumeContext.contains_type(LPS.TYPE):
+            for i in self.LumeContext.agents(LPS.TYPE):
+                lps_lume.append(i)
 
         return len(lps_lume)
 
@@ -1007,7 +1008,7 @@ class Model:
     def permeability(self):
         for ce in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             permeability = ce.getPermeability()
-
+        
         return permeability
 
     def removeSCFA(self):
@@ -1037,26 +1038,50 @@ class Model:
     
 
     def log_countsLume(self, tick):
-        num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE, AlfaSinucleina.TYPE])
+        if self.LumeContext.contains_type(LPS.TYPE):
+            num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE])
 
-        self.lumeCounts.lps = num_LumeAgents[LPS.TYPE]
-        self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
-        #self.lumeCounts.immRespo = self.ImmuneResp()
-        self.lumeCounts.alfasin = num_LumeAgents[AlfaSinucleina.TYPE]
+            self.lumeCounts.lps = num_LumeAgents[LPS.TYPE]
+            self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
 
+            if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
+                num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE, AlfaSinucleina.TYPE])
+                self.lumeCounts.alfasin = num_LumeAgents[AlfaSinucleina.TYPE]
+            
+        else:
+            num_LumeAgents= self.LumeContext.size([TNFalfa.TYPE])
+            self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
+            
         self.lumeData_set.log(tick)
 
+
     def log_countsNervous(self, tick):
-        num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, ArtificialAgent.TYPE, Electron.TYPE, Oxygen.TYPE])    
+        if self.NervousContext.contains_type(AlfaSinucleina.TYPE):
+            num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+
+            self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]    
+            self.nervousCounts.alfasinucleina = num_NervousAgents[AlfaSinucleina.TYPE]      
+            self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
+            self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
+
+            if self.NervousContext.contains_type(Electron.TYPE):
+                num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Electron.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+                self.nervousCounts.electron = num_NervousAgents[Electron.TYPE] 
+
+                if self.NervousContext.contains_type(ROS.TYPE):
+                    num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, ROS.TYPE, Electron.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
+                    self.nervousCounts.ros = num_NervousAgents[ROS.TYPE] 
+           
+        else:
+            num_NervousAgents = self.NervousContext.size([Nadh.TYPE, Oxygen.TYPE, ArtificialAgent.TYPE])    
         
-        self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]    
-        self.nervousCounts.alfasinucleina = num_NervousAgents[AlfaSinucleina.TYPE] 
-        self.nervousCounts.ros = num_NervousAgents[ROS.TYPE]      
-        self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
-        self.nervousCounts.electron = num_NervousAgents[Electron.TYPE]
-        self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
+            self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]       
+            self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
+            self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
 
         self.nervousData_set.log(tick)
+
+
 
 def run(params: Dict):
     global model    

@@ -1,16 +1,16 @@
 random.seed : 42
-stop.at : 300.0
+stop.at : 500.0
 scfa.count : 500
 lps.count : 400
-lpslume.count : 8
-tnf.count: 100
-alfasinucleina.count: 4
-alfasinucleinaNervous.count : 4
+lpslume.count : 0
+tnf.count: 300
+alfasinucleina.count: 0
+alfasinucleinaNervous.count : 0
 epitelialCell.count : 100
 nadh.count : 500
-ros.count : 10
+ros.count : 0
 artificialagent.count : 10
-electron.count : 20
+electron.count : 0
 oxygen.count : 400
 microbiotaWorld.width : 500
 microbiotaWorld.height : 500
