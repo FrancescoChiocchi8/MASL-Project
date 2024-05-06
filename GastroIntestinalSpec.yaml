@@ -12,6 +12,7 @@ ros.count : 0
 artificialagent.count : 100
 electron.count : 0
 oxygen.count : 400
+probioticArtificialAgent.count : 25
 microbiotaWorld.width : 500
 microbiotaWorld.height : 500
 lumeWorld.width : 400

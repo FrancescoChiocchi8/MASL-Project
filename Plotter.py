@@ -70,14 +70,16 @@ def aggregate_plots(scenarios, save_path):
     plt.savefig(save_path)
     plt.close()
 
-data1 = pd.read_csv('output/MicrobiotaOutput_counts_5.csv')
-data2 = pd.read_csv('output/LumeOutput_counts_5.csv')
-data3 = pd.read_csv('output/NervousOutput_counts_5.csv')
+data1 = pd.read_csv('output/MicrobiotaOutput_counts_13.csv')
+data2 = pd.read_csv('output/LumeOutput_counts_15.csv')
+data3 = pd.read_csv('output/NervousOutput_counts_15.csv')
 
 plots1 = [
     {'y_col': 'scfa', 'label': 'SCFA', 'title': 'SCFA respect to Tick'},
     {'y_col': 'permeability', 'label': 'Permeability', 'title': 'Permeability respect to Tick'},
-    {'y_col': 'lps', 'label': 'LPS', 'title': 'LPS respect to Tick'}
+    {'y_col': 'lps', 'label': 'LPS', 'title': 'LPS respect to Tick'},
+    {'y_col': 'cellEpit', 'label': 'cellEpit', 'title': 'cellEpit respect to Tick'},
+    {'y_col': 'probioticArtificialAgent', 'label': 'PAA', 'title': 'PAA respect to Tick'}
 ]
 
 plots2 = [
@@ -96,20 +98,20 @@ plots3 = [
 
 scenarios = [
     {
-        'data_path': 'output/NervousOutput_counts_5.csv',
+        'data_path': 'output/NervousOutput_counts_15.csv',
         'agent_types': ['nadh', 'alfasinucleina', 'ros', 'artificialAgent', 'electron', 'oxygen'],
         'title': 'CNS - Behavior of the agents',
         'output_path': 'output/graphs/cns/all/cns_plot.png'
     },
     {
-        'data_path': 'output/LumeOutput_counts_5.csv',
+        'data_path': 'output/LumeOutput_counts_15.csv',
         'agent_types': ['lps', 'tnfAlfa', 'alfasin'],
         'title': 'LUME - Behavior of the agents',
         'output_path': 'output/graphs/lume/all/lume_plot.png'
     },
     {
-        'data_path': 'output/MicrobiotaOutput_counts_5.csv',
-        'agent_types': ['scfa', 'lps', 'permeability', 'cellEpit'],
+        'data_path': 'output/MicrobiotaOutput_counts_13.csv',
+        'agent_types': ['scfa', 'lps', 'permeability', 'cellEpit', 'probioticArtificialAgent'],
         'title': 'MICROBIOTA - Behavior of the agents',
         'output_path': 'output/graphs/microbiota/all/microbiota_plot.png'
     }

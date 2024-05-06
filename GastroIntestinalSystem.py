@@ -161,9 +161,18 @@ class CellulaEpiteliale(core.Agent):
         return self.permeability
 
     def step(self):
-        if self.permeability <= 80:
-            self.permeability += (self.permeability * 5) / 100
-
+        global model
+        
+        probiotic_artificial_agents_count = model.MicrobiotaContext.size([ProbioticArtificialAgent.TYPE])[ProbioticArtificialAgent.TYPE]
+    
+        if probiotic_artificial_agents_count > 20:
+            # Slow down the increase in permeability
+            if self.permeability <= 80:
+                self.permeability += (self.permeability * 2) / 100
+        else:
+            # Normal permeability increase
+            if self.permeability <= 80:
+                self.permeability += (self.permeability * 5) / 100
 
 class TNFalfa(core.Agent):
     TYPE = 3
@@ -477,6 +486,16 @@ class ArtificialAgent(core.Agent):
                 break
         
 
+class ProbioticArtificialAgent(core.Agent):
+
+    TYPE = 10
+
+    def __init__(self, a_id, rank):
+        super().__init__(id=a_id, type=ProbioticArtificialAgent.TYPE, rank=rank)
+
+    def save(self) -> Tuple:
+        return (self.uid,)
+
 
 agent_cache = {} 
 
@@ -572,6 +591,15 @@ def restore_agent(agent_data: Tuple):
             agent_cache[uid] = q
             return q
 
+    if uid[1] == ProbioticArtificialAgent.TYPE:
+        
+        if uid in agent_cache:
+            return agent_cache[uid]
+        
+        else:
+            q = ProbioticArtificialAgent(uid[0], uid[2])
+            agent_cache[uid] = q
+            return q
 
 
 @dataclass
@@ -580,6 +608,7 @@ class MicrobiotaCounts:
     lps: int = 0
     permeability: float = 0.0
     cellEpit: int = 0
+    probioticArtificialAgent: int = 0
 
 @dataclass
 class LumeCounts:
@@ -851,6 +880,19 @@ class Model:
             self.moveNervous(q, x, y)
 
         
+        #add probioticArtificialAgent cell to microbiota context    
+        total_paa_count = params['probioticArtificialAgent.count']
+        pp_paa_count = int(total_paa_count / world_size)
+        if self.rank < total_paa_count % world_size:
+            pp_paa_count += 1
+        
+        for i in range(pp_paa_count):    
+            paa = ProbioticArtificialAgent(i, self.rank)    
+            self.MicrobiotaContext.add(paa)    
+            x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
+            y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
+            self.move(paa, x, y)
+        
     def at_endMicrobiota(self):
         self.microbiotaData_set.close()
     
@@ -1024,11 +1066,12 @@ class Model:
     
 
     def log_countsMicrobiota(self, tick):
-        num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE]) 
+        num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE, ProbioticArtificialAgent.TYPE]) 
 
         self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
         self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
         self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
+        self.microbiotaCounts.probioticArtificialAgent = num_MicrobiotaAgents[ProbioticArtificialAgent.TYPE]
         self.microbiotaCounts.permeability = self.permeability() 
 
         self.microbiotaData_set.log(tick)
