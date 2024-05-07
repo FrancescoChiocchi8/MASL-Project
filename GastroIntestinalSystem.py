@@ -160,21 +160,25 @@ class CellulaEpiteliale(core.Agent):
     def getPermeability(self):
         return self.permeability
 
-    def step(self):
+    def step(self, context):
         global model
         
-        probiotic_artificial_agents_count = model.MicrobiotaContext.size([ProbioticArtificialAgent.TYPE])[ProbioticArtificialAgent.TYPE]
+        probiotic_artificial_agents_count = 0
+        
+        if context.contains_type(ProbioticArtificialAgent.TYPE):
+            probiotic_artificial_agents_count = model.MicrobiotaContext.size([ProbioticArtificialAgent.TYPE])[ProbioticArtificialAgent.TYPE]
     
         if probiotic_artificial_agents_count > 20:
             # Slow down the increase in permeability
             if self.permeability <= 80:
                 self.permeability += (self.permeability * 2) / 100
         else:
-            # Normal permeability increase
+            # Normal increase of permeability
             if self.permeability <= 80:
                 self.permeability += (self.permeability * 5) / 100
 
 class TNFalfa(core.Agent):
+    
     TYPE = 3
 
     def __init__(self, a_id, rank):
@@ -495,6 +499,9 @@ class ProbioticArtificialAgent(core.Agent):
 
     def save(self) -> Tuple:
         return (self.uid,)
+    
+    def step(self):
+        pass
 
 
 agent_cache = {} 
@@ -957,7 +964,7 @@ class Model:
 
         for c in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             if len(scfa_count) <= self.min_scfa:
-                c.step()
+                c.step(self.MicrobiotaContext)
 
         alfa_moved = []
         max_alfa_moved = 30 
@@ -1066,13 +1073,19 @@ class Model:
     
 
     def log_countsMicrobiota(self, tick):
-        num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE, ProbioticArtificialAgent.TYPE]) 
-
-        self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
-        self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
-        self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
-        self.microbiotaCounts.probioticArtificialAgent = num_MicrobiotaAgents[ProbioticArtificialAgent.TYPE]
-        self.microbiotaCounts.permeability = self.permeability() 
+        if self.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
+            num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE, ProbioticArtificialAgent.TYPE]) 
+            self.microbiotaCounts.probioticArtificialAgent = num_MicrobiotaAgents[ProbioticArtificialAgent.TYPE]
+            self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
+            self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
+            self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
+            self.microbiotaCounts.permeability = self.permeability() 
+        else:
+            num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE])
+            self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
+            self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
+            self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
+            self.microbiotaCounts.permeability = self.permeability() 
 
         self.microbiotaData_set.log(tick)
     
