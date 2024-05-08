@@ -160,12 +160,11 @@ class CellulaEpiteliale(core.Agent):
     def getPermeability(self):
         return self.permeability
 
-    def step(self, context):
-        global model
+    def step(self):
         
         probiotic_artificial_agents_count = 0
         
-        if context.contains_type(ProbioticArtificialAgent.TYPE):
+        if model.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
             probiotic_artificial_agents_count = model.MicrobiotaContext.size([ProbioticArtificialAgent.TYPE])[ProbioticArtificialAgent.TYPE]
     
         if probiotic_artificial_agents_count > 20:
@@ -964,7 +963,7 @@ class Model:
 
         for c in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
             if len(scfa_count) <= self.min_scfa:
-                c.step(self.MicrobiotaContext)
+                c.step()
 
         alfa_moved = []
         max_alfa_moved = 30 
