@@ -14,6 +14,8 @@ from numba import int32
 from numba.experimental import jitclass
 from repast4py import parameters
 import os
+import psutil
+import matplotlib
 
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -111,40 +113,18 @@ class LPS(core.Agent):
         direction = pt.coordinates * 0.4
         model.move(self, space_pt.x + direction[0], space_pt.y + direction[1])
   
-                 
     def stepLume(self):
         grid = model.lumeGrid
         pt = grid.get_location(self)
-        nghs = model.ngh_finderLume.find(pt.x, pt.y)
 
-        minimum = [[], sys.maxsize]    
-        at = dpt(0, 0)
-        for ngh in nghs:
-            at._reset_from_array(ngh)
-            count = 0
-            for obj in grid.get_agents(at):
-                if obj.uid[1] == TNFalfa.TYPE:
-                    count += 1
-            if count < minimum[1]:    
-                minimum[0] = [ngh]
-                minimum[1] = count
-            elif count == minimum[1]:
-                minimum[0].append(ngh)
+        space_pt = model.lumeSpace.get_location(self)
+        direction = pt.coordinates * 0.4
+        model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
-        min_ngh = minimum[0][random.default_rng.integers(0, len(minimum[0]))]
-
-        if not np.all(min_ngh == pt.coordinates):
-            space_pt = model.lumeSpace.get_location(self)
-            direction = (min_ngh - pt.coordinates) * 0.8
-            model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
-        
-        pt = grid.get_location(self)
-        for obj in grid.get_agents(pt):
-            if obj.uid[1] == TNFalfa.TYPE:
-                if model.ImmuneResp() == True:
-                    model.generate_alfasin(pt)
-                break
-
+        probability_of_release = 0.30
+        if model.ImmuneResp() == True:
+            if rd.random() <= probability_of_release:
+                model.generate_alfasin(pt)
 
 class CellulaEpiteliale(core.Agent):
 
@@ -190,6 +170,10 @@ class TNFalfa(core.Agent):
     def getRispostaImm(self):
         return self.rispostaImm
     
+    def remove_lps(self, agent):
+        if model.LumeContext.contains_type(LPS.TYPE):
+            model.LumeContext.remove(agent)
+    
     def step(self):
         self.rispostaImm = True
         grid = model.lumeGrid
@@ -216,6 +200,12 @@ class TNFalfa(core.Agent):
             space_pt = model.lumeSpace.get_location(self)
             direction = (max_ngh - pt.coordinates[0:3]) * 0.5
             model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
+        
+        pt = grid.get_location(self)
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == LPS.TYPE:
+                self.remove_lps(obj)
+                break
 
 
         
@@ -309,8 +299,8 @@ class Nadh(core.Agent):
         for obj in grid.get_agents(pt):
             if obj.uid[1] == AlfaSinucleina.TYPE:
                 # release of electron with a 0.8 index of probability
-                probability_of_release = 0.8
-                if random.default_rng.uniform(0, 1) <= probability_of_release:
+                probability_of_release = 0.3
+                if rd.random() <= probability_of_release:
                     self.generate_electron(pt)
                 break
 
@@ -951,10 +941,11 @@ class Model:
         
         if self.LumeContext.contains_type(LPS.TYPE):
             for l2 in self.LumeContext.agents(LPS.TYPE):
-                l2.stepLume()
+                if model.getNumberAlfaLume() < 1500:
+                    l2.stepLume()
 
         for t in self.LumeContext.agents(TNFalfa.TYPE):
-            if self.getNumberLPS() >= 100:
+            if self.getNumberLPS() > 150:
                 t.step()
 
         if tick == 1:
@@ -966,16 +957,15 @@ class Model:
                 c.step()
 
         alfa_moved = []
-        max_alfa_moved = 30 
-        numAlfa_to_remove = rd.randint(0, 10)
+        numAlfa_to_remove = rd.randint(0, 20)
         if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
             for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
                 a.stepLume()
-                alfa_moved.append(a)
-
-        if len(alfa_moved) >= max_alfa_moved:
-            for _ in range(numAlfa_to_remove):
-                if alfa_moved:
+                if self.getNumberAlfaNervous() < 1400:
+                    alfa_moved.append(a)
+ 
+        for _ in range(numAlfa_to_remove):
+            if alfa_moved:
                     al = alfa_moved.pop(0)
                     self.LumeContext.remove(al)
                     self.moveToNervous()
@@ -992,10 +982,11 @@ class Model:
                 e.step()
         
         oxigen_fusion = []
-        for o in self.NervousContext.agents(Oxygen.TYPE):
-            fusion = o.step()
-            if fusion == True:
-                oxigen_fusion.append(o)
+        if self.NervousContext.contains_type(Oxygen.TYPE):
+            for o in self.NervousContext.agents(Oxygen.TYPE):
+                fusion = o.step()
+                if fusion == True:
+                    oxigen_fusion.append(o)
 
         for i in oxigen_fusion:
             self.NervousContext.remove(i)
@@ -1019,6 +1010,22 @@ class Model:
                 lps_lume.append(i)
 
         return len(lps_lume)
+    
+    def getNumberAlfaNervous(self):
+        alfa_count = []
+        if self.NervousContext.contains_type(AlfaSinucleina.TYPE):
+            for i in self.NervousContext.agents(AlfaSinucleina.TYPE):
+                alfa_count.append(i)
+
+        return len(alfa_count)
+    
+    def getNumberAlfaLume(self):
+        alfa_count = []
+        if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
+            for i in self.LumeContext.agents(AlfaSinucleina.TYPE):
+                alfa_count.append(i)
+
+        return len(alfa_count)
 
     def moveToLume(self):
         local_boundsLume = self.lumeSpace.get_local_bounds()
@@ -1042,7 +1049,8 @@ class Model:
             a = AlfaSinucleina(self.alfa_id, self.rank)
             self.alfa_id += 1
             self.LumeContext.add(a)
-            self.moveLume(a, pt.x, pt.y) 
+            move_range = rd.random()
+            self.moveLume(a, pt.x + move_range, pt.y + move_range) 
 
     def ImmuneResp(self):
         for i in self.LumeContext.agents(TNFalfa.TYPE):
