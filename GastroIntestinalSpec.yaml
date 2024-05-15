@@ -1,5 +1,5 @@
 random.seed : 42
-stop.at : 800
+stop.at : 500
 scfa.count : 500
 lps.count : 300
 lpslume.count : 0

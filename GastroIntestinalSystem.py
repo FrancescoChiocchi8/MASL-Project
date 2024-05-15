@@ -14,9 +14,7 @@ from numba import int32
 from numba.experimental import jitclass
 from repast4py import parameters
 import os
-import psutil
-import matplotlib
-
+import subprocess
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -405,7 +403,15 @@ class ROS(core.Agent):
     
     def save(self) -> Tuple:
         return (self.uid,)
+    
+    def step(self):
+        grid = model.nervousGrid
+        pt = grid.get_location(self)
 
+        space_pt = model.nervousSpace.get_location(self)
+        direction = pt.coordinates * 0.3
+        model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
+    """
     def step(self):
         grid = model.nervousGrid
         pt = grid.get_location(self)
@@ -431,7 +437,7 @@ class ROS(core.Agent):
             space_pt = model.nervousSpace.get_location(self)
             direction = (min_ngh - pt.coordinates) * 0.3
             model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1]) 
-
+    """
 
 class ArtificialAgent(core.Agent):
 
@@ -1143,9 +1149,7 @@ class Model:
             num_NervousAgents = self.NervousContext.size([ArtificialAgent.TYPE])   
             self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
 
-        self.nervousData_set.log(tick)
-
-
+        self.nervousData_set.log(tick) 
 
 def run(params: Dict):
     global model    
@@ -1155,5 +1159,8 @@ def run(params: Dict):
 if __name__ == "__main__":
     parser = parameters.create_args_parser()    
     args = parser.parse_args()   
-    params = parameters.init_params(args.parameters_file, args.parameters)    
+    params = parameters.init_params(args.parameters_file, args.parameters) 
+    simulation_process = subprocess.Popen(["python3", "Performance.py"])   #plot performance of computer during simulation
     run(params)
+    simulation_process.terminate()
+
