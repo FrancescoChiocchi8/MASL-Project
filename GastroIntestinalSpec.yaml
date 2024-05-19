@@ -1,5 +1,5 @@
 random.seed : 42
-stop.at : 500
+stop.at : 1000
 scfa.count : 500
 lps.count : 300
 lpslume.count : 0
@@ -17,8 +17,8 @@ microbiotaWorld.width : 500
 microbiotaWorld.height : 500
 lumeWorld.width : 400
 lumeWorld.height : 400
-nervousWorld.width : 500
-nervousWorld.height : 500
+nervousWorld.width : 300
+nervousWorld.height : 300
 run.number : 1
 logging_file : './output/MicrobiotaOutput_counts.csv'
 lumeLogging_file : './output/LumeOutput_counts.csv'

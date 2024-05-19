@@ -296,11 +296,10 @@ class Nadh(core.Agent):
         pt = grid.get_location(self)
         for obj in grid.get_agents(pt):
             if obj.uid[1] == AlfaSinucleina.TYPE:
-                # release of electron with a 0.8 index of probability
-                probability_of_release = 0.3
-                if rd.random() <= probability_of_release:
-                    self.generate_electron(pt)
-                break
+                    probability_of_release = 0.3
+                    if rd.random() <= probability_of_release:
+                        self.generate_electron(pt)
+                    break
 
 
 
@@ -411,33 +410,7 @@ class ROS(core.Agent):
         space_pt = model.nervousSpace.get_location(self)
         direction = pt.coordinates * 0.3
         model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
-    """
-    def step(self):
-        grid = model.nervousGrid
-        pt = grid.get_location(self)
-        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
 
-        minimum = [[], sys.maxsize]    
-        at = dpt(0, 0)
-        for ngh in nghs:
-            at._reset_from_array(ngh)
-            count = 0
-            for obj in grid.get_agents(at):
-                if obj.uid[1] == Nadh.TYPE:
-                    count += 1
-            if count < minimum[1]:    
-                minimum[0] = [ngh]
-                minimum[1] = count
-            elif count == minimum[1]:
-                minimum[0].append(ngh)
-
-        min_ngh = minimum[0][random.default_rng.integers(0, len(minimum[0]))]
-
-        if not np.all(min_ngh == pt.coordinates):
-            space_pt = model.nervousSpace.get_location(self)
-            direction = (min_ngh - pt.coordinates) * 0.3
-            model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1]) 
-    """
 
 class ArtificialAgent(core.Agent):
 
@@ -475,7 +448,7 @@ class ArtificialAgent(core.Agent):
         max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
 
         if not np.all(max_ngh == pt.coordinates):
-            direction = (max_ngh - pt.coordinates[0:3]) * 0.4
+            direction = (max_ngh - pt.coordinates[0:3]) * 0.5
             model.moveNervous(self, cpt.x + direction[0], cpt.y + direction[1])
 
         pt = grid.get_location(self)
@@ -495,8 +468,6 @@ class ProbioticArtificialAgent(core.Agent):
     def save(self) -> Tuple:
         return (self.uid,)
     
-    def step(self):
-        pass
 
 
 agent_cache = {} 
@@ -947,7 +918,7 @@ class Model:
         
         if self.LumeContext.contains_type(LPS.TYPE):
             for l2 in self.LumeContext.agents(LPS.TYPE):
-                if model.getNumberAlfaLume() < 1500:
+                if model.getNumberAlfaLume() < 700:
                     l2.stepLume()
 
         for t in self.LumeContext.agents(TNFalfa.TYPE):
@@ -963,11 +934,11 @@ class Model:
                 c.step()
 
         alfa_moved = []
-        numAlfa_to_remove = rd.randint(0, 20)
+        numAlfa_to_remove = rd.randint(0, 10)
         if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
             for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
                 a.stepLume()
-                if self.getNumberAlfaNervous() < 1400:
+                if self.getNumberAlfaNervous() < 600:
                     alfa_moved.append(a)
  
         for _ in range(numAlfa_to_remove):
@@ -1007,8 +978,8 @@ class Model:
         if self.NervousContext.contains_type(ArtificialAgent.TYPE):
             for q in self.NervousContext.agents(ArtificialAgent.TYPE):
                 q.step() 
-        
-
+   
+    
     def getNumberLPS(self):
         lps_lume = []
         if self.LumeContext.contains_type(LPS.TYPE):
@@ -1160,7 +1131,7 @@ if __name__ == "__main__":
     parser = parameters.create_args_parser()    
     args = parser.parse_args()   
     params = parameters.init_params(args.parameters_file, args.parameters) 
-    simulation_process = subprocess.Popen(["python3", "Performance.py"])   #plot performance of computer during simulation
+    #simulation_process = subprocess.Popen(["python3", "Performance.py"])   #plot performance of computer during simulation
     run(params)
-    simulation_process.terminate()
+    #simulation_process.terminate()
 
