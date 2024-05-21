@@ -2,7 +2,7 @@ import pygame
 import pandas as pd
 import random
 
-file_path = 'output/union_for_gui/union5.csv'
+file_path = 'output/union_for_gui/union1.csv'
 data = pd.read_csv(file_path, usecols=lambda col: col != 'permeability')
 
 SCREEN_WIDTH = 1200
@@ -11,7 +11,7 @@ BACKGROUND_COLOR = (255, 255, 255)
 
 AGENT_COLORS = {
     'nadh': ((0,128,128)), #teal
-    'ros': (0,255,0), #cyan
+    'ros': (255,0,0), #cyan
     'alfasinucleina': (0, 0, 255), #blue
     'electron': (255, 255, 0), #yellow
     'oxygen': (192,192,192) #gray
