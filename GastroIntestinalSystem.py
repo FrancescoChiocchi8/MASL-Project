@@ -137,22 +137,25 @@ class CellulaEpiteliale(core.Agent):
     
     def getPermeability(self):
         return self.permeability
-
-    def step(self):
-        
+    
+    def getNumberOfProbiotic(self):
         probiotic_artificial_agents_count = 0
         
         if model.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
             probiotic_artificial_agents_count = model.MicrobiotaContext.size([ProbioticArtificialAgent.TYPE])[ProbioticArtificialAgent.TYPE]
     
-        if probiotic_artificial_agents_count > 20:
+        return len(probiotic_artificial_agents_count)
+
+    def step(self):
+        
+        #if self.getNumberOfProbiotic() > 20:
             # Slow down the increase in permeability
-            if self.permeability <= 80:
-                self.permeability += (self.permeability * 2) / 100
-        else:
+            #if self.permeability <= 80:
+                #self.permeability += (self.permeability * 2) / 100
+       # else:
             # Normal increase of permeability
-            if self.permeability <= 80:
-                self.permeability += (self.permeability * 5) / 100
+        if self.permeability <= 80:
+            self.permeability += (self.permeability * 5) / 100
 
 class TNFalfa(core.Agent):
     
@@ -260,12 +263,6 @@ class Nadh(core.Agent):
 
     def save(self) -> Tuple:
         return (self.uid,)
-    
-    def generate_electron(self, pt):
-        e = Electron(model.electron_id, model.rank)
-        model.electron_id += 1
-        model.NervousContext.add(e)
-        model.moveNervous(e, pt.x, pt.y)
 
     def step(self):
         grid = model.nervousGrid
@@ -298,7 +295,7 @@ class Nadh(core.Agent):
             if obj.uid[1] == AlfaSinucleina.TYPE:
                     probability_of_release = 0.3
                     if rd.random() <= probability_of_release:
-                        self.generate_electron(pt)
+                        model.generate_electron(pt)
                     break
 
 
@@ -338,6 +335,15 @@ class Electron(core.Agent):
             direction = (max_ngh - pt.coordinates[0:3]) * 0.7
             model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
+        electron_fusion = []
+        pt = grid.get_location(self)      
+        for obj in grid.get_agents(pt):
+            if obj.uid[1] == Oxygen.TYPE:
+                obj.fusion()
+                electron_fusion.append(self)
+                break
+        
+        return electron_fusion
 
 class Oxygen(core.Agent):
     
@@ -350,11 +356,8 @@ class Oxygen(core.Agent):
     def save(self) -> Tuple:
         return (self.uid, self.ElectronFusion)
 
-    def generate_ros(self, pt):
-        r = ROS(model.ros_id, model.rank)
-        model.ros_id += 1
-        model.NervousContext.add(r)
-        model.moveNervous(r, pt.x, pt.y)
+    def fusion(self):
+        self.ElectronFusion = True
 
     def step(self):
         grid = model.nervousGrid
@@ -381,16 +384,7 @@ class Oxygen(core.Agent):
             direction = (max_ngh - pt.coordinates[0:3]) * 0.7
             model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
             
-        
-        pt = grid.get_location(self)        
-        for obj in grid.get_agents(pt):
-            if obj.uid[1] == Electron.TYPE:
-                self.ElectronFusion = True
-                self.generate_ros(pt)
-                model.NervousContext.remove(obj)
-                break
-        
-        return(self.ElectronFusion)
+        return(self.ElectronFusion, pt)
     
 
 class ROS(core.Agent):
@@ -412,24 +406,21 @@ class ROS(core.Agent):
         model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
 
-class ArtificialAgent(core.Agent):
+class ProbioticArtificialAgent(core.Agent):
 
-    TYPE = 9
+    TYPE = 10
 
     def __init__(self, a_id, rank):
-        super().__init__(id=a_id, type=ArtificialAgent.TYPE, rank=rank)
-    
+        super().__init__(id=a_id, type=ProbioticArtificialAgent.TYPE, rank=rank)
+
     def save(self) -> Tuple:
         return (self.uid,)
     
-    def remove_Electron(self, agent):
-        model.NervousContext.remove(agent)
-    
     def step(self):
-        grid = model.nervousGrid
+        grid = model.microibiotaGrid
         pt = grid.get_location(self)
-        nghs = model.ngh_finderNervous.find(pt.x, pt.y)
-        cpt = model.nervousSpace.get_location(self)
+        nghs = model.ngh_finderMicrobiota.find(pt.x, pt.y)
+        cpt = model.microbiotaSpace.get_location(self)
 
         at = dpt(0, 0)
         maximum = [[], -(sys.maxsize - 1)]
@@ -437,7 +428,7 @@ class ArtificialAgent(core.Agent):
             at._reset_from_array(ngh)
             count = 0
             for obj in grid.get_agents(at):
-                if obj.uid[1] == Electron.TYPE:
+                if obj.uid[1] == CellulaEpiteliale.TYPE:
                     count += 1
             if count > maximum[1]:
                 maximum[0] = [ngh]
@@ -449,25 +440,14 @@ class ArtificialAgent(core.Agent):
 
         if not np.all(max_ngh == pt.coordinates):
             direction = (max_ngh - pt.coordinates[0:3]) * 0.5
-            model.moveNervous(self, cpt.x + direction[0], cpt.y + direction[1])
+            model.move(self, cpt.x + direction[0], cpt.y + direction[1])
 
         pt = grid.get_location(self)
         for obj in grid.get_agents(pt):
-            if obj.uid[1] == Electron.TYPE:
-                self.remove_Electron(obj)
+            if obj.uid[1] == CellulaEpiteliale.TYPE:
+                if  obj.permeability > 10:
+                   obj.permeability  = obj.permeability  - (obj.permeability  * 50) / 100
                 break
-        
-
-class ProbioticArtificialAgent(core.Agent):
-
-    TYPE = 10
-
-    def __init__(self, a_id, rank):
-        super().__init__(id=a_id, type=ProbioticArtificialAgent.TYPE, rank=rank)
-
-    def save(self) -> Tuple:
-        return (self.uid,)
-    
 
 
 agent_cache = {} 
@@ -554,25 +534,13 @@ def restore_agent(agent_data: Tuple):
             agent_cache[uid] = r
             return r
         
-    if uid[1] == ArtificialAgent.TYPE:
-        
-        if uid in agent_cache:
-            return agent_cache[uid]
-        
-        else:
-            q = ArtificialAgent(uid[0], uid[2])
-            agent_cache[uid] = q
-            return q
-
     if uid[1] == ProbioticArtificialAgent.TYPE:
-        
         if uid in agent_cache:
             return agent_cache[uid]
-        
         else:
-            q = ProbioticArtificialAgent(uid[0], uid[2])
-            agent_cache[uid] = q
-            return q
+            pr = ProbioticArtificialAgent(uid[0], uid[2])
+            agent_cache[uid] = pr
+            return pr
 
 
 @dataclass
@@ -594,7 +562,6 @@ class NervousCounts:
     nadh: int = 0
     alfasinucleina: int = 0
     ros: int = 0
-    artificialAgent: int = 0
     electron: int = 0
     oxygen: int = 0
 
@@ -837,21 +804,6 @@ class Model:
             x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
             y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
             self.moveNervous(o, x, y) 
-
-        #add artificialAgent agents to context
-        total_aa_count = params['artificialagent.count']    
-        pp_aa_count = int(total_aa_count / world_size) 
-        if self.rank < total_aa_count % world_size:    
-            pp_aa_count += 1
-        
-          
-        for i in range(pp_aa_count):    
-            q = ArtificialAgent(i, self.rank)    
-            self.NervousContext.add(q)    
-            x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
-            y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
-            self.moveNervous(q, x, y)
-
         
         #add probioticArtificialAgent cell to microbiota context    
         total_paa_count = params['probioticArtificialAgent.count']
@@ -904,13 +856,22 @@ class Model:
             scfa_count.append(s)
         
         lps_moved = []
-        max_lps_moved = 10 
 
         for l1 in self.MicrobiotaContext.agents(LPS.TYPE):
             l1.stepMicrobiota()  
-            if self.permeability() >= 60:
+            if self.permeability() >= 40 and self.permeability() < 50:
+                max_lps_moved = 5
                 if len(lps_moved) < max_lps_moved:
                     lps_moved.append(l1)
+            if self.permeability() >= 50 and self.permeability() < 65:
+                max_lps_moved = 10
+                if len(lps_moved) < max_lps_moved:
+                    lps_moved.append(l1)
+            if self.permeability() >= 65:
+                max_lps_moved = 18
+                if len(lps_moved) < max_lps_moved:
+                    lps_moved.append(l1)
+                
         
         for i in lps_moved:
             self.MicrobiotaContext.remove(i)
@@ -954,16 +915,21 @@ class Model:
         if tick >= 10:
             self.removeSCFA()
 
+        electron_fusion = []
         if self.NervousContext.contains_type(Electron.TYPE):
             for e in self.NervousContext.agents(Electron.TYPE):    
-                e.step()
+                electron_fusion = e.step()
+        
+        for j in electron_fusion:
+            self.NervousContext.remove(j)
         
         oxigen_fusion = []
         if self.NervousContext.contains_type(Oxygen.TYPE):
             for o in self.NervousContext.agents(Oxygen.TYPE):
-                fusion = o.step()
+                fusion, pt = o.step()
                 if fusion == True:
                     oxigen_fusion.append(o)
+                    self.generate_ros(pt)
 
         for i in oxigen_fusion:
             self.NervousContext.remove(i)
@@ -975,9 +941,9 @@ class Model:
             for r in self.NervousContext.agents(ROS.TYPE):
                 r.step()
 
-        if self.NervousContext.contains_type(ArtificialAgent.TYPE):
-            for q in self.NervousContext.agents(ArtificialAgent.TYPE):
-                q.step() 
+        if self.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
+            for pr in self.MicrobiotaContext.agents(ProbioticArtificialAgent.TYPE):
+                pr.step()
    
     
     def getNumberLPS(self):
@@ -1022,12 +988,25 @@ class Model:
         y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
         self.moveNervous(a, x, y)
 
+    def generate_electron(self, pt):
+        e = Electron(model.electron_id, model.rank)
+        model.electron_id += 1
+        model.NervousContext.add(e)
+        move_range = rd.random()
+        model.moveNervous(e, pt.x + move_range, pt.y + move_range)
+
     def generate_alfasin(self, pt):
             a = AlfaSinucleina(self.alfa_id, self.rank)
             self.alfa_id += 1
             self.LumeContext.add(a)
             move_range = rd.random()
             self.moveLume(a, pt.x + move_range, pt.y + move_range) 
+    
+    def generate_ros(self, pt):
+        r = ROS(model.ros_id, model.rank)
+        model.ros_id += 1
+        model.NervousContext.add(r)
+        model.moveNervous(r, pt.x, pt.y)
 
     def ImmuneResp(self):
         for i in self.LumeContext.agents(TNFalfa.TYPE):
@@ -1099,7 +1078,6 @@ class Model:
             self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]    
             self.nervousCounts.alfasinucleina = num_NervousAgents[AlfaSinucleina.TYPE]      
             self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
-            #self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
 
             if self.NervousContext.contains_type(Electron.TYPE):
                 num_NervousAgents = self.NervousContext.size([Nadh.TYPE, AlfaSinucleina.TYPE, Electron.TYPE, Oxygen.TYPE])    
@@ -1114,11 +1092,6 @@ class Model:
         
             self.nervousCounts.nadh = num_NervousAgents[Nadh.TYPE]       
             self.nervousCounts.oxygen = num_NervousAgents[Oxygen.TYPE]
-            #self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE] 
-
-        if self.NervousContext.contains_type(ArtificialAgent.TYPE):
-            num_NervousAgents = self.NervousContext.size([ArtificialAgent.TYPE])   
-            self.nervousCounts.artificialAgent = num_NervousAgents[ArtificialAgent.TYPE]
 
         self.nervousData_set.log(tick) 
 
