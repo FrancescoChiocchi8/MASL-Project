@@ -119,10 +119,7 @@ class LPS(core.Agent):
         direction = pt.coordinates * 0.4
         model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
-        probability_of_release = 0.30
-        if model.ImmuneResp() == True:
-            if rd.random() <= probability_of_release:
-                model.generate_alfasin(pt)
+        return pt
 
 class CellulaEpiteliale(core.Agent):
 
@@ -138,24 +135,10 @@ class CellulaEpiteliale(core.Agent):
     def getPermeability(self):
         return self.permeability
     
-    def getNumberOfProbiotic(self):
-        probiotic_artificial_agents_count = 0
-        
-        if model.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
-            probiotic_artificial_agents_count = model.MicrobiotaContext.size([ProbioticArtificialAgent.TYPE])[ProbioticArtificialAgent.TYPE]
-    
-        return len(probiotic_artificial_agents_count)
-
     def step(self):
-        
-        #if self.getNumberOfProbiotic() > 20:
-            # Slow down the increase in permeability
-            #if self.permeability <= 80:
-                #self.permeability += (self.permeability * 2) / 100
-       # else:
-            # Normal increase of permeability
         if self.permeability <= 80:
-            self.permeability += (self.permeability * 5) / 100
+            self.permeability += (self.permeability * 2) / 100
+
 
 class TNFalfa(core.Agent):
     
@@ -168,15 +151,11 @@ class TNFalfa(core.Agent):
     def save(self) -> Tuple:
         return (self.uid, self.rispostaImm)
     
-    def getRispostaImm(self):
-        return self.rispostaImm
-    
     def remove_lps(self, agent):
         if model.LumeContext.contains_type(LPS.TYPE):
             model.LumeContext.remove(agent)
-    
+     
     def step(self):
-        self.rispostaImm = True
         grid = model.lumeGrid
         pt = grid.get_location(self)
         nghs = model.ngh_finderLume.find(pt.x, pt.y)
@@ -205,9 +184,8 @@ class TNFalfa(core.Agent):
         pt = grid.get_location(self)
         for obj in grid.get_agents(pt):
             if obj.uid[1] == LPS.TYPE:
-                self.remove_lps(obj)
+                model.generate_alfasin(pt)
                 break
-
 
         
 class AlfaSinucleina(core.Agent):
@@ -253,7 +231,6 @@ class AlfaSinucleina(core.Agent):
             direction = (max_ngh - pt.coordinates[0:3]) * 0.5
             model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
-
 class Nadh(core.Agent):
     
     TYPE = 5
@@ -297,8 +274,6 @@ class Nadh(core.Agent):
                     if rd.random() <= probability_of_release:
                         model.generate_electron(pt)
                     break
-
-
 
 class Electron(core.Agent):
     
@@ -406,50 +381,6 @@ class ROS(core.Agent):
         model.moveNervous(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
 
-class ProbioticArtificialAgent(core.Agent):
-
-    TYPE = 10
-
-    def __init__(self, a_id, rank):
-        super().__init__(id=a_id, type=ProbioticArtificialAgent.TYPE, rank=rank)
-
-    def save(self) -> Tuple:
-        return (self.uid,)
-    
-    def step(self):
-        grid = model.microibiotaGrid
-        pt = grid.get_location(self)
-        nghs = model.ngh_finderMicrobiota.find(pt.x, pt.y)
-        cpt = model.microbiotaSpace.get_location(self)
-
-        at = dpt(0, 0)
-        maximum = [[], -(sys.maxsize - 1)]
-        for ngh in nghs:
-            at._reset_from_array(ngh)
-            count = 0
-            for obj in grid.get_agents(at):
-                if obj.uid[1] == CellulaEpiteliale.TYPE:
-                    count += 1
-            if count > maximum[1]:
-                maximum[0] = [ngh]
-                maximum[1] = count
-            elif count == maximum[1]:
-                maximum[0].append(ngh)
-        
-        max_ngh = maximum[0][random.default_rng.integers(0, len(maximum[0]))]
-
-        if not np.all(max_ngh == pt.coordinates):
-            direction = (max_ngh - pt.coordinates[0:3]) * 0.5
-            model.move(self, cpt.x + direction[0], cpt.y + direction[1])
-
-        pt = grid.get_location(self)
-        for obj in grid.get_agents(pt):
-            if obj.uid[1] == CellulaEpiteliale.TYPE:
-                if  obj.permeability > 10:
-                   obj.permeability  = obj.permeability  - (obj.permeability  * 50) / 100
-                break
-
-
 agent_cache = {} 
 
 def restore_agent(agent_data: Tuple): 
@@ -489,7 +420,6 @@ def restore_agent(agent_data: Tuple):
             t = TNFalfa(uid[0], uid[2])
             agent_cache[uid] = t
 
-        t.rispostaImm = agent_data[1]
         return t   
 
     if uid[1] == AlfaSinucleina.TYPE:                                                       
@@ -533,14 +463,6 @@ def restore_agent(agent_data: Tuple):
             r = ROS(uid[0], uid[2])
             agent_cache[uid] = r
             return r
-        
-    if uid[1] == ProbioticArtificialAgent.TYPE:
-        if uid in agent_cache:
-            return agent_cache[uid]
-        else:
-            pr = ProbioticArtificialAgent(uid[0], uid[2])
-            agent_cache[uid] = pr
-            return pr
 
 
 @dataclass
@@ -549,7 +471,6 @@ class MicrobiotaCounts:
     lps: int = 0
     permeability: float = 0.0
     cellEpit: int = 0
-    probioticArtificialAgent: int = 0
 
 @dataclass
 class LumeCounts:
@@ -715,6 +636,9 @@ class Model:
             y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
             self.moveLume(t, x, y)
 
+        self.tnf_id = pp_tnf_count
+
+        self.iflammation = params['lume.inflamation']
 
         #add alfasinucleina to lume context
         total_alfa_count = params['alfasinucleina.count']    
@@ -804,19 +728,7 @@ class Model:
             x = random.default_rng.uniform(local_boundsNervous.xmin, local_boundsNervous.xmin + local_boundsNervous.xextent)    
             y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
             self.moveNervous(o, x, y) 
-        
-        #add probioticArtificialAgent cell to microbiota context    
-        total_paa_count = params['probioticArtificialAgent.count']
-        pp_paa_count = int(total_paa_count / world_size)
-        if self.rank < total_paa_count % world_size:
-            pp_paa_count += 1
-        
-        for i in range(pp_paa_count):    
-            paa = ProbioticArtificialAgent(i, self.rank)    
-            self.MicrobiotaContext.add(paa)    
-            x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)    
-            y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
-            self.move(paa, x, y)
+
         
     def at_endMicrobiota(self):
         self.microbiotaData_set.close()
@@ -860,15 +772,15 @@ class Model:
         for l1 in self.MicrobiotaContext.agents(LPS.TYPE):
             l1.stepMicrobiota()  
             if self.permeability() >= 40 and self.permeability() < 50:
-                max_lps_moved = 5
+                max_lps_moved = 3
                 if len(lps_moved) < max_lps_moved:
                     lps_moved.append(l1)
             if self.permeability() >= 50 and self.permeability() < 65:
-                max_lps_moved = 10
+                max_lps_moved = 5
                 if len(lps_moved) < max_lps_moved:
                     lps_moved.append(l1)
             if self.permeability() >= 65:
-                max_lps_moved = 18
+                max_lps_moved = 8
                 if len(lps_moved) < max_lps_moved:
                     lps_moved.append(l1)
                 
@@ -876,15 +788,23 @@ class Model:
         for i in lps_moved:
             self.MicrobiotaContext.remove(i)
             self.moveToLume()
-        
+
         if self.LumeContext.contains_type(LPS.TYPE):
             for l2 in self.LumeContext.agents(LPS.TYPE):
-                if model.getNumberAlfaLume() < 700:
-                    l2.stepLume()
+                l2.stepLume()
+                if self.getNumberLPS() > 180:
+                    #setta la risposta immunitaria a True ed avvia la produzione di TNF-alfa
+                    self.iflammation = True
+                    probability_of_release = 0.3
+                    if rd.random() <= probability_of_release:
+                        if model.getNumberTnf() < 400:
+                            model.generate_TNFalfa()
+                    
 
-        for t in self.LumeContext.agents(TNFalfa.TYPE):
-            if self.getNumberLPS() > 150:
-                t.step()
+        if self.LumeContext.contains_type(TNFalfa.TYPE):
+            for t in self.LumeContext.agents(TNFalfa.TYPE): 
+                if model.getNumberAlfaLume() < 700:
+                    t.step()
 
         if tick == 1:
             num_tot_scfa = len(scfa_count)
@@ -895,11 +815,11 @@ class Model:
                 c.step()
 
         alfa_moved = []
-        numAlfa_to_remove = rd.randint(0, 10)
+        numAlfa_to_remove = rd.randint(0, 5)
         if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
             for a in self.LumeContext.agents(AlfaSinucleina.TYPE):
                 a.stepLume()
-                if self.getNumberAlfaNervous() < 600:
+                if self.getNumberAlfaLume() > 50 and self.getNumberAlfaNervous() < 600:
                     alfa_moved.append(a)
  
         for _ in range(numAlfa_to_remove):
@@ -940,10 +860,6 @@ class Model:
         if self.NervousContext.contains_type(ROS.TYPE):
             for r in self.NervousContext.agents(ROS.TYPE):
                 r.step()
-
-        if self.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
-            for pr in self.MicrobiotaContext.agents(ProbioticArtificialAgent.TYPE):
-                pr.step()
    
     
     def getNumberLPS(self):
@@ -962,6 +878,14 @@ class Model:
 
         return len(alfa_count)
     
+    def getNumberTnf(self):
+        tnf_count = []
+        if self.LumeContext.contains_type(TNFalfa.TYPE):
+            for i in self.LumeContext.agents(TNFalfa.TYPE):
+                tnf_count.append(i)
+
+        return len(tnf_count)
+
     def getNumberAlfaLume(self):
         alfa_count = []
         if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
@@ -988,6 +912,15 @@ class Model:
         y = random.default_rng.uniform(local_boundsNervous.ymin, local_boundsNervous.ymin + local_boundsNervous.yextent)
         self.moveNervous(a, x, y)
 
+    def generate_TNFalfa(self):
+        local_boundsLume = self.lumeSpace.get_local_bounds()
+        t = TNFalfa(model.tnf_id, model.rank)
+        model.tnf_id += 1
+        model.LumeContext.add(t)
+        x = random.default_rng.uniform(local_boundsLume.xmin, local_boundsLume.xmin + local_boundsLume.xextent)
+        y = random.default_rng.uniform(local_boundsLume.ymin, local_boundsLume.ymin + local_boundsLume.yextent)
+        model.moveLume(t, x, y)
+
     def generate_electron(self, pt):
         e = Electron(model.electron_id, model.rank)
         model.electron_id += 1
@@ -1007,12 +940,6 @@ class Model:
         model.ros_id += 1
         model.NervousContext.add(r)
         model.moveNervous(r, pt.x, pt.y)
-
-    def ImmuneResp(self):
-        for i in self.LumeContext.agents(TNFalfa.TYPE):
-           immuneResponse = i.getRispostaImm()
-
-        return immuneResponse
 
     def permeability(self):
         for ce in self.MicrobiotaContext.agents(CellulaEpiteliale.TYPE):
@@ -1036,37 +963,27 @@ class Model:
     
 
     def log_countsMicrobiota(self, tick):
-        if self.MicrobiotaContext.contains_type(ProbioticArtificialAgent.TYPE):
-            num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE, ProbioticArtificialAgent.TYPE]) 
-            self.microbiotaCounts.probioticArtificialAgent = num_MicrobiotaAgents[ProbioticArtificialAgent.TYPE]
-            self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
-            self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
-            self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
-            self.microbiotaCounts.permeability = self.permeability() 
-        else:
-            num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE])
-            self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
-            self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
-            self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
-            self.microbiotaCounts.permeability = self.permeability() 
+        num_MicrobiotaAgents = self.MicrobiotaContext.size([SCFA.TYPE, LPS.TYPE, CellulaEpiteliale.TYPE]) 
+        self.microbiotaCounts.scfa = num_MicrobiotaAgents[SCFA.TYPE]    
+        self.microbiotaCounts.lps = num_MicrobiotaAgents[LPS.TYPE]
+        self.microbiotaCounts.cellEpit = num_MicrobiotaAgents[CellulaEpiteliale.TYPE]
+        self.microbiotaCounts.permeability = self.permeability() 
 
         self.microbiotaData_set.log(tick)
     
 
     def log_countsLume(self, tick):
         if self.LumeContext.contains_type(LPS.TYPE):
-            num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE])
-
+            num_LumeAgents= self.LumeContext.size([LPS.TYPE])
             self.lumeCounts.lps = num_LumeAgents[LPS.TYPE]
-            self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
 
-            if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
-                num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE, AlfaSinucleina.TYPE])
-                self.lumeCounts.alfasin = num_LumeAgents[AlfaSinucleina.TYPE]
-            
-        else:
-            num_LumeAgents= self.LumeContext.size([TNFalfa.TYPE])
-            self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
+            if self.LumeContext.contains_type(TNFalfa.TYPE):
+                num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE])
+                self.lumeCounts.tnfAlfa = num_LumeAgents[TNFalfa.TYPE]
+
+                if self.LumeContext.contains_type(AlfaSinucleina.TYPE):
+                    num_LumeAgents= self.LumeContext.size([LPS.TYPE, TNFalfa.TYPE, AlfaSinucleina.TYPE])
+                    self.lumeCounts.alfasin = num_LumeAgents[AlfaSinucleina.TYPE]
             
         self.lumeData_set.log(tick)
 

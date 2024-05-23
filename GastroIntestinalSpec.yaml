@@ -3,7 +3,8 @@ stop.at : 1000
 scfa.count : 500
 lps.count : 300
 lpslume.count : 0
-tnf.count: 300
+tnf.count: 0
+lume.inflamation : False
 alfasinucleina.count: 0
 alfasinucleinaNervous.count : 0
 epitelialCell.count : 100
@@ -14,8 +15,8 @@ oxygen.count : 700
 probioticArtificialAgent.count : 0
 microbiotaWorld.width : 400
 microbiotaWorld.height : 400
-lumeWorld.width : 400
-lumeWorld.height : 400
+lumeWorld.width : 200
+lumeWorld.height : 200
 nervousWorld.width : 300
 nervousWorld.height : 300
 run.number : 1

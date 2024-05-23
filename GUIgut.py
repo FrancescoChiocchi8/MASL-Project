@@ -2,7 +2,7 @@ import pygame
 import pandas as pd
 import random
 
-file_path = 'output/union_for_gui/union1.csv'
+file_path = 'output/union_for_gui/union_new.csv'
 data = pd.read_csv(file_path, usecols=lambda col: col != 'permeability')
 
 SCREEN_WIDTH = 1200
