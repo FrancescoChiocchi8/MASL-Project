@@ -33,18 +33,19 @@ After completing the initial setup steps, you can proceed with the following ins
 
 ## Graphical View
 
-- To run the GUI, use the following command:
+- To run the GUI for the gut, use the following command:
 ```bash
- python3 GUI.py
+ python3 GUIgut.py
+```
+Press 'a' for automatic mode, 'm' for manual mode and stop iteration, left and right arrow for change tick view.
+
+- To run the GUI for the nervous system, use the following command:
+```bash
+ python3 GUInervous.py
 ```
 Press 'a' for automatic mode, 'm' for manual mode and stop iteration, left and right arrow for change tick view.
 
 - To generate graphs, run the following command. The output graphs will be stored in the [graphs directory](/output/graphs/):
 ```bash
  python3 Plotter.py
-```
-
-- To run animation for the system (microbiota, lumen, cns), run the following command:
-```bash
- python3 Animation.py
 ```

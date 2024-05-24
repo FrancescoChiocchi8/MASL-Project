@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-data = pd.read_csv('output/MicrobiotaOutput_counts.csv')
+data = pd.read_csv('output/MicrobiotaOutput_counts_16.csv')
 
 fig, ax = plt.subplots()
 ax.set_xlim(0, len(data))
