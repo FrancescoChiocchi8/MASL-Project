@@ -119,8 +119,6 @@ class LPS(core.Agent):
         direction = pt.coordinates * 0.4
         model.moveLume(self, space_pt.x + direction[0], space_pt.y + direction[1])
 
-        return pt
-
 class CellulaEpiteliale(core.Agent):
 
     TYPE = 2
@@ -146,14 +144,9 @@ class TNFalfa(core.Agent):
 
     def __init__(self, a_id, rank):
         super().__init__(id = a_id, type = TNFalfa.TYPE, rank=rank)
-        self.rispostaImm=False
 
     def save(self) -> Tuple:
-        return (self.uid, self.rispostaImm)
-    
-    def remove_lps(self, agent):
-        if model.LumeContext.contains_type(LPS.TYPE):
-            model.LumeContext.remove(agent)
+        return (self.uid)
      
     def step(self):
         grid = model.lumeGrid
